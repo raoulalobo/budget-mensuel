@@ -1,0 +1,21 @@
+{
+  "projectName": "budget",
+  "mode": "file-router",
+  "typescript": true,
+  "tailwind": true,
+  "packageManager": "npm",
+  "git": false,
+  "install": true,
+  "intent": false,
+  "addOnOptions": {},
+  "includeExamples": false,
+  "envVarValues": {},
+  "routerOnly": false,
+  "version": 1,
+  "framework": "react",
+  "chosenAddOns": [
+    "convex",
+    "shadcn",
+    "tanstack-query"
+  ]
+}
