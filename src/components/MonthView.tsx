@@ -30,6 +30,7 @@ import SummaryCards from './SummaryCards'
 import ImportDialog from './ImportDialog'
 import PhotoImportDialog from './PhotoImportDialog'
 import EntryDetailDialog from './EntryDetailDialog'
+import AddEntryDialog from './AddEntryDialog'
 
 /**
  * Vue détaillée d'un mois : reproduit l'onglet mensuel de la feuille.
@@ -240,11 +241,11 @@ function SectionCard({
   monthId: Id<'months'>
   entries: Entry[]
 }) {
-  const addEntry = useMutation(api.budget.addEntry)
-  const [newLabel, setNewLabel] = useState('')
   // Ligne dont le détail est ouvert (re-dérivée depuis `entries` pour rester à jour).
   const [selectedId, setSelectedId] = useState<Id<'entries'> | null>(null)
   const selected = entries.find((e) => e._id === selectedId) ?? null
+  // Modale d'ajout d'une ligne.
+  const [addOpen, setAddOpen] = useState(false)
 
   // Sous-totaux de la section.
   const totals = entries.reduce(
@@ -253,14 +254,6 @@ function SectionCard({
   )
   // Pour les dépenses on calcule l'écart budget − réel (positif = économie).
   const isExpense = EXPENSE_SECTIONS.includes(section)
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault()
-    const label = newLabel.trim()
-    if (!label) return
-    setNewLabel('')
-    await addEntry({ monthId, section, label })
-  }
 
   return (
     <section className="app-card overflow-hidden">
@@ -334,25 +327,28 @@ function SectionCard({
         </table>
       </div>
 
-      {/* Formulaire d'ajout de ligne */}
-      <form
-        onSubmit={handleAdd}
-        className="flex items-center gap-2 border-t border-border px-4 py-3"
-      >
-        <input
-          className="app-input flex-1"
-          placeholder={`Ajouter une ligne dans « ${SECTION_LABELS[section]} »`}
-          value={newLabel}
-          onChange={(e) => setNewLabel(e.target.value)}
-        />
-        <button type="submit" className="app-btn-primary" disabled={!newLabel.trim()}>
-          <Plus className="h-4 w-4" /> Ajouter
+      {/* Bouton d'ajout : ouvre la modale d'ajout complète */}
+      <div className="border-t border-border px-4 py-3">
+        <button
+          className="app-btn-ghost w-full justify-center border border-dashed border-border"
+          onClick={() => setAddOpen(true)}
+        >
+          <Plus className="h-4 w-4" /> Ajouter une ligne
         </button>
-      </form>
+      </div>
 
       {/* Détail de la ligne sélectionnée */}
       {selected && (
         <EntryDetailDialog entry={selected} onClose={() => setSelectedId(null)} />
+      )}
+
+      {/* Modale d'ajout d'une ligne */}
+      {addOpen && (
+        <AddEntryDialog
+          monthId={monthId}
+          section={section}
+          onClose={() => setAddOpen(false)}
+        />
       )}
     </section>
   )

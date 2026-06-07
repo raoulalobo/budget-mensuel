@@ -184,6 +184,8 @@ export const addEntry = mutation({
     label: v.string(),
     budget: v.optional(v.number()),
     real: v.optional(v.number()),
+    note: v.optional(v.string()),
+    receiptId: v.optional(v.id('receipts')),
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx)
@@ -207,6 +209,8 @@ export const addEntry = mutation({
       budget: args.budget ?? 0,
       real: args.real ?? 0,
       order: nextOrder,
+      note: args.note,
+      receiptId: args.receiptId,
     })
   },
 })
