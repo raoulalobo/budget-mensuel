@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import {
@@ -25,6 +26,7 @@ import {
   monthName,
 } from '../lib/budget'
 import { generateYearPdf } from '../lib/pdf'
+import YearSelector from '../components/YearSelector'
 
 /**
  * Route "/" : tableau de bord annuel.
@@ -41,11 +43,11 @@ export const Route = createFileRoute('/')({
   component: Dashboard,
 })
 
-const YEAR = 2025
-
 function Dashboard() {
   const months = useQuery(api.budget.listMonths)
   const assets = useQuery(api.budget.listAssets)
+  // Année sélectionnée (hook appelé inconditionnellement, avant tout return).
+  const [picked, setPicked] = useState<number | null>(null)
 
   // Tant que les données chargent.
   if (months === undefined || assets === undefined) {
@@ -57,8 +59,13 @@ function Dashboard() {
     return <EmptyState />
   }
 
+  // Année affichée : la plus récente avec des données par défaut, sinon en cours.
+  const currentYear = new Date().getFullYear()
+  const defaultYear = Math.max(...months.map((m) => m.year))
+  const year = picked ?? (defaultYear || currentYear)
+
   // ── Agrégats annuels (sur les montants réels) ──────────────────────────────
-  const yearMonths = months.filter((m) => m.year === YEAR)
+  const yearMonths = months.filter((m) => m.year === year)
   const totalIncome = yearMonths.reduce((s, m) => s + m.summary.incomeReal, 0)
   const totalExpense = yearMonths.reduce((s, m) => s + m.summary.expenseReal, 0)
   const totalNet = totalIncome - totalExpense
@@ -86,17 +93,20 @@ function Dashboard() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Tableau de bord — {YEAR}</h1>
+          <h1 className="text-2xl font-bold">Tableau de bord — {year}</h1>
           <p className="text-sm text-muted-foreground">
             Vue d'ensemble de votre année budgétaire.
           </p>
         </div>
-        {/* Export du bilan annuel en PDF */}
-        <button
-          className="app-btn-ghost"
-          onClick={() =>
-            generateYearPdf({
-              year: YEAR,
+        <div className="flex items-center gap-2">
+          {/* Sélecteur d'année */}
+          <YearSelector year={year} onChange={setPicked} />
+          {/* Export du bilan annuel en PDF */}
+          <button
+            className="app-btn-ghost"
+            onClick={() =>
+              generateYearPdf({
+                year,
               totals: {
                 income: totalIncome,
                 expense: totalExpense,
@@ -115,8 +125,9 @@ function Dashboard() {
             })
           }
         >
-          <FileDown className="h-4 w-4" /> Exporter PDF
-        </button>
+            <FileDown className="h-4 w-4" /> Exporter PDF
+          </button>
+        </div>
       </div>
 
       {/* Indicateurs clés */}
@@ -167,7 +178,7 @@ function Dashboard() {
       </div>
 
       {/* Répartition des dépenses du dernier mois renseigné */}
-      {lastFilled && <ExpenseBreakdown year={YEAR} month={lastFilled.month} />}
+      {lastFilled && <ExpenseBreakdown year={year} month={lastFilled.month} />}
     </div>
   )
 }

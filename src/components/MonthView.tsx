@@ -57,9 +57,12 @@ export default function MonthView({
   const [photoOpen, setPhotoOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
-  // Bornes de navigation : on reste sur l'année courante (1 → 12).
-  const prev = month > 1 ? { year, month: month - 1 } : null
-  const next = month < 12 ? { year, month: month + 1 } : null
+  // Navigation : passage d'année aux bornes (janvier ← déc année précédente,
+  // décembre → jan année suivante).
+  const prev =
+    month > 1 ? { year, month: month - 1 } : { year: year - 1, month: 12 }
+  const next =
+    month < 12 ? { year, month: month + 1 } : { year: year + 1, month: 1 }
 
   /** Duplique le mois courant vers le mois suivant puis y navigue. */
   async function handleDuplicate() {
