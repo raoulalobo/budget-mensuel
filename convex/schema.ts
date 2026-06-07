@@ -52,9 +52,15 @@ export default defineSchema({
     budget: v.number(),
     real: v.number(),
     order: v.number(),
+    // Reçu/justificatif optionnel (photo partagée entre les lignes d'un ticket).
+    receiptId: v.optional(v.id('receipts')),
+    // Note libre optionnelle (saisie au clavier ou dictée vocale).
+    note: v.optional(v.string()),
   })
     .index('by_month', ['monthId'])
-    .index('by_month_section', ['monthId', 'section']),
+    .index('by_month_section', ['monthId', 'section'])
+    // Pour compter combien de lignes référencent un reçu (nettoyage des fichiers).
+    .index('by_receipt', ['receiptId']),
 
   /**
    * Patrimoine / placements de l'utilisateur (onglet "Avoir").
@@ -66,6 +72,17 @@ export default defineSchema({
     label: v.string(),
     amount: v.number(),
     order: v.number(),
+  }).index('by_user', ['userId']),
+
+  /**
+   * Reçu / justificatif : un fichier image stocké UNE fois (file storage Convex),
+   * partagé par toutes les lignes issues d'un même ticket. Les lignes pointent
+   * vers ce reçu via `entries.receiptId`. Le fichier n'est supprimé que lorsque
+   * plus aucune ligne ne le référence (comptage de références).
+   */
+  receipts: defineTable({
+    userId: v.id('users'),
+    storageId: v.id('_storage'),
   }).index('by_user', ['userId']),
 
   /**

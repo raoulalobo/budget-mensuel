@@ -74,7 +74,7 @@ async function getOwnedMonth(
 
 /** Vérifie qu'une ligne appartient bien à l'utilisateur, sinon lève une erreur. */
 async function getOwnedEntry(
-  ctx: MutationCtx,
+  ctx: QueryCtx | MutationCtx,
   userId: Id<'users'>,
   entryId: Id<'entries'>,
 ) {
@@ -212,8 +212,32 @@ export const addEntry = mutation({
 })
 
 /**
- * Met à jour un ou plusieurs champs d'une ligne (libellé, budget, réel).
- * Seuls les champs fournis sont modifiés.
+ * Supprime un reçu (fichier + doc) UNIQUEMENT s'il n'est plus référencé par
+ * aucune ligne (comptage de références). Évite d'effacer une photo encore
+ * utilisée par d'autres lignes du même ticket, et évite les orphelins.
+ */
+async function maybeDeleteReceipt(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  receiptId: Id<'receipts'>,
+) {
+  const stillUsed = await ctx.db
+    .query('entries')
+    .withIndex('by_receipt', (q) => q.eq('receiptId', receiptId))
+    .first()
+  if (stillUsed) return
+  const receipt = await ctx.db.get(receiptId)
+  if (!receipt || receipt.userId !== userId) return
+  await ctx.storage.delete(receipt.storageId)
+  await ctx.db.delete(receiptId)
+}
+
+/**
+ * Met à jour un ou plusieurs champs d'une ligne (libellé, budget, réel, note,
+ * reçu/photo). Seuls les champs fournis sont modifiés.
+ *
+ * Au remplacement du reçu (`receiptId`), l'ancien reçu est nettoyé s'il n'est
+ * plus référencé par aucune autre ligne.
  */
 export const updateEntry = mutation({
   args: {
@@ -221,25 +245,87 @@ export const updateEntry = mutation({
     label: v.optional(v.string()),
     budget: v.optional(v.number()),
     real: v.optional(v.number()),
+    note: v.optional(v.string()),
+    receiptId: v.optional(v.id('receipts')),
   },
   handler: async (ctx, { entryId, ...patch }) => {
     const userId = await requireUser(ctx)
-    await getOwnedEntry(ctx, userId, entryId)
+    const entry = await getOwnedEntry(ctx, userId, entryId)
+    const oldReceiptId = entry.receiptId
+
     // On ne garde que les champs réellement définis.
     const fields = Object.fromEntries(
       Object.entries(patch).filter(([, v]) => v !== undefined),
     )
     await ctx.db.patch(entryId, fields)
+
+    // Remplacement de reçu : nettoyer l'ancien s'il n'est plus utilisé.
+    if (
+      patch.receiptId !== undefined &&
+      oldReceiptId &&
+      oldReceiptId !== patch.receiptId
+    ) {
+      await maybeDeleteReceipt(ctx, userId, oldReceiptId)
+    }
   },
 })
 
-/** Supprime une ligne de budget. */
+/**
+ * Supprime une ligne de budget. Son reçu n'est effacé que s'il n'est plus
+ * référencé par une autre ligne (comptage de références).
+ */
 export const removeEntry = mutation({
   args: { entryId: v.id('entries') },
   handler: async (ctx, { entryId }) => {
     const userId = await requireUser(ctx)
-    await getOwnedEntry(ctx, userId, entryId)
+    const entry = await getOwnedEntry(ctx, userId, entryId)
+    const receiptId = entry.receiptId
     await ctx.db.delete(entryId)
+    if (receiptId) {
+      await maybeDeleteReceipt(ctx, userId, receiptId)
+    }
+  },
+})
+
+/**
+ * Génère une URL d'upload signée (file storage Convex). Le client y envoie le
+ * fichier (POST) et reçoit un `storageId`, qu'il transforme ensuite en reçu via
+ * `createReceipt`.
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireUser(ctx)
+    return await ctx.storage.generateUploadUrl()
+  },
+})
+
+/**
+ * Crée un reçu à partir d'un fichier déjà uploadé (son `storageId`) et renvoie
+ * son `receiptId`, à rattacher à une ou plusieurs lignes.
+ */
+export const createReceipt = mutation({
+  args: { storageId: v.id('_storage') },
+  handler: async (ctx, { storageId }) => {
+    const userId = await requireUser(ctx)
+    return await ctx.db.insert('receipts', { userId, storageId })
+  },
+})
+
+/**
+ * Renvoie l'URL (signée, temporaire) du reçu/photo d'une ligne, ou `null` si la
+ * ligne n'a pas de reçu.
+ */
+export const entryPhotoUrl = query({
+  args: { entryId: v.id('entries') },
+  handler: async (ctx, { entryId }) => {
+    const userId = await getAuthUserId(ctx)
+    if (userId === null) return null
+    const entry = await ctx.db.get(entryId)
+    if (!entry || entry.userId !== userId || !entry.receiptId) return null
+    const receipt = await ctx.db.get(entry.receiptId)
+    if (!receipt || receipt.userId !== userId) return null
+    return await ctx.storage.getUrl(receipt.storageId)
   },
 })
 
@@ -261,6 +347,8 @@ export const importEntries = mutation({
         label: v.string(),
         budget: v.number(),
         real: v.number(),
+        // Reçu optionnel (partagé entre les lignes d'un même ticket).
+        receiptId: v.optional(v.id('receipts')),
       }),
     ),
   },
@@ -303,6 +391,7 @@ export const importEntries = mutation({
         budget: e.budget,
         real: e.real,
         order: next,
+        receiptId: e.receiptId,
       })
     }
 

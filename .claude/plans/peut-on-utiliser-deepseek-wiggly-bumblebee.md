@@ -1,112 +1,112 @@
-# Plan — Permettre la création de nouveaux mois (multi-année)
+# Plan — Modèle « reçus » partagés (photo = un reçu, plusieurs lignes)
 
 ## Contexte
 
-L'application est aujourd'hui **figée sur l'année 2025** : impossible de créer ou
-consulter des mois d'une autre année (2026, 2027…). Or « aujourd'hui » est en
-2026, donc les utilisateurs ne peuvent pas saisir leur budget courant.
+La fonctionnalité « détail + photo + note » (non encore commitée) lie la photo
+**à chaque ligne** via `entries.imageStorageId`. Un ticket à plusieurs articles
+produit plusieurs lignes qui **partagent le même fichier** (stocké une seule fois,
+référencé N fois). Deux vrais défauts de ce modèle :
+- **Suppression cassante** : supprimer une ligne efface le fichier partagé → les
+  autres lignes du même ticket perdent leur image (référence morte).
+- **Remplacement** d'une photo sur une ligne n'affecte pas ses sœurs.
+- La photo appartient logiquement au **ticket**, pas à chaque ligne.
 
-Le **backend est déjà 100% multi-année** — `ensureMonth`, `getMonth`,
-`listMonths` (`convex/budget.ts`) et la route `/mois/$year/$month`
-(`src/routes/mois.$year.$month.tsx`) acceptent n'importe quel `(year, month)`.
-Le blocage est **uniquement frontend**, à 3 endroits qui codent l'année en dur ou
-bornent la navigation.
+**Décision** : introduire une table **`receipts`** (un reçu = un fichier stocké une
+fois). Chaque ligne référence un `receiptId`. **Suppression par comptage de
+références** : le fichier n'est effacé que lorsque plus aucune ligne ne le référence.
+La `note` reste **par ligne** (chaque article peut avoir sa note).
 
-**Décisions retenues** :
-- Création via **sélecteur d'année + clic sur un mois** (un clic sur une carte de
-  mois le crée directement) ; pas de boîte de dialogue dédiée.
-- **Navigation préc./suiv. qui franchit les années** (déc 2025 → jan 2026).
-- **Année par défaut = la plus récente où l'utilisateur a des mois**, sinon
-  l'année civile en cours.
-
-**Résultat visé** : un utilisateur peut naviguer entre années, créer n'importe
-quel mois (passé/futur), et le tableau de bord/la liste s'ouvrent sur l'année
-pertinente.
-
----
-
-## Approche (réutilise l'existant, aucun changement backend)
-
-Logique commune (dans `/mois` et le dashboard) pour l'année sélectionnée :
-```ts
-const months = useQuery(api.budget.listMonths)
-const currentYear = new Date().getFullYear()            // OK en composant navigateur
-const defaultYear = months?.length ? Math.max(...months.map(m => m.year)) : currentYear
-const [picked, setPicked] = useState<number | null>(null)
-const year = picked ?? defaultYear                       // suit le défaut tant que non choisi
-```
-Un petit composant présentational **`YearSelector`** (◀ {year} ▶) factorise le
-sélecteur, réutilisé par les deux pages.
+Comme la feature est seulement en local (pas commitée/déployée), on refactore le
+modèle proprement avant de figer.
 
 ---
 
 ## Fichiers à modifier
 
-### 1. Créer `src/components/YearSelector.tsx` (nouveau, ~30 lignes)
-Composant `{ year: number, onChange: (y:number)=>void }` : deux boutons
-`ChevronLeft`/`ChevronRight` (lucide) entourant l'année, style `app-btn-ghost`.
-`onChange(year-1)` / `onChange(year+1)`.
-
-### 2. `src/components/MonthView.tsx` — navigation inter-années
-Lignes ~60-62 : remplacer les bornes par un rollover d'année.
-```ts
-const prev = month > 1 ? { year, month: month - 1 } : { year: year - 1, month: 12 }
-const next = month < 12 ? { year, month: month + 1 } : { year: year + 1, month: 1 }
-```
-`NavArrow` a désormais toujours une cible (on peut simplifier/retirer la branche
-`null`). Les flèches **naviguent** seulement ; un mois inexistant affiche le
-bouton « Créer ce mois » existant (pas d'auto-création par simple navigation —
-évite de créer des mois vides en masse). Inchangé : `ensureMonth`, « Créer ce mois ».
-
-### 3. `src/routes/mois.index.tsx` — sélecteur d'année + clic-pour-créer
-- Remplacer `const YEAR = 2025` (ligne 16) par la logique `year` ci-dessus +
-  `<YearSelector year onChange={setPicked} />` en tête. Titre « Mes mois — {year} ».
-- Le `filter((m) => m.year === YEAR)` (ligne ~24) utilise `year`.
-- **Cartes de mois** : remplacer le `<Link>` par un `<button>` avec `onClick`
-  qui **crée puis navigue** (uniforme, idempotent) :
+### 1. `convex/schema.ts`
+- Nouvelle table :
   ```ts
-  const ensureMonth = useMutation(api.budget.ensureMonth)
-  const navigate = useNavigate()
-  async function openMonth(m: number) {
-    await ensureMonth({ year, month: m })            // idempotent : crée si absent
-    navigate({ to: '/mois/$year/$month', params: { year: String(year), month: String(m) } })
-  }
+  receipts: defineTable({
+    userId: v.id('users'),
+    storageId: v.id('_storage'),
+  }).index('by_user', ['userId']),
   ```
-  Garder le même style de carte + le badge « Vide » / « Excédent/Déficit ».
+- `entries` : **remplacer** `imageStorageId` par `receiptId: v.optional(v.id('receipts'))`
+  (garder `note`). Ajouter un index `.index('by_receipt', ['receiptId'])` pour le
+  comptage de références.
 
-### 4. `src/routes/index.tsx` (dashboard) — sélecteur d'année
-- Remplacer `const YEAR = 2025` (ligne 44) par la logique `year` +
-  `<YearSelector>` près du titre (à côté du bouton « Exporter PDF »).
-- Tous les agrégats/graphiques (`yearMonths`, `byMonth`, `monthlyData`,
-  `ExpenseBreakdown`, export PDF) utilisent `year` au lieu de `YEAR`.
-- `EmptyState` (base totalement vide) inchangé ; un **année sans données** affiche
-  simplement des graphiques vides, ce qui est attendu.
+### 2. `convex/budget.ts`
+- **`generateUploadUrl`** : inchangé.
+- **`createReceipt`** (nouvelle mutation) : `requireUser` + `ctx.db.insert('receipts',
+  { userId, storageId })` → renvoie le `receiptId`. (Le client : upload via
+  `generateUploadUrl` → `storageId` → `createReceipt` → `receiptId`.)
+- **Helper `maybeDeleteReceipt(ctx, receiptId)`** : si **aucune** ligne ne référence
+  ce reçu (`entries` via index `by_receipt`, `.first()` === null), supprimer le
+  fichier (`ctx.storage.delete(receipt.storageId)`) puis le doc `receipts`.
+  (Vérifier `receipt.userId === userId`.)
+- **`importEntries`** : dans le `v.object` des entries, remplacer `imageStorageId`
+  par `receiptId: v.optional(v.id('receipts'))` ; l'insérer.
+- **`updateEntry`** : remplacer `imageStorageId` par `receiptId: v.optional(v.id('receipts'))`.
+  Au remplacement (ancien `receiptId` ≠ nouveau), après le patch, appeler
+  `maybeDeleteReceipt(oldReceiptId)` (et **non** `storage.delete` direct).
+- **`removeEntry`** : mémoriser `entry.receiptId`, supprimer la ligne, puis
+  `maybeDeleteReceipt(receiptId)` (le comptage exclut la ligne déjà supprimée).
+- **`entryPhotoUrl`** : résoudre `entry.receiptId` → `receipts.get` → `storage.getUrl(receipt.storageId)`.
+
+### 3. `src/components/PhotoImportDialog.tsx`
+- `handleImport` : pour chaque `seq` distinct conservé, **upload une fois**
+  (`uploadImageDataUrl`) → `createReceipt({ storageId })` → `receiptId` ;
+  `Map<seq, Id<'receipts'>>` ; chaque entrée reçoit `receiptId` (au lieu de
+  `imageStorageId`). Ajouter `const createReceipt = useMutation(api.budget.createReceipt)`.
+
+### 4. `src/components/EntryDetailDialog.tsx`
+- `DetailEntry` : `receiptId?: Id<'receipts'>` (au lieu de `imageStorageId`).
+- `handleAttach` : upload → `createReceipt({ storageId })` → `updateEntry({ entryId,
+  receiptId })`. Ajouter `useMutation(api.budget.createReceipt)`.
+- Le reste (note, `entryPhotoUrl` par `entryId`, analyse IA, indicateurs) inchangé.
+
+### 5. `src/components/MonthView.tsx`
+- Type local `Entry` : `receiptId?: Id<'receipts'>` (au lieu de `imageStorageId`).
+- Indicateur 📎 `Paperclip` : condition `entry.receiptId` (au lieu de `imageStorageId`).
+
+### 6. `src/lib/upload.ts`
+- Inchangé (renvoie toujours un `storageId`). Le passage `storageId → receiptId`
+  se fait dans les composants via `createReceipt`.
 
 ---
 
 ## Points d'attention
-- `new Date().getFullYear()` : utilisé uniquement côté composant navigateur (pas
-  dans une fonction Convex) → autorisé.
-- Le `year` suit `defaultYear` pendant le chargement de `listMonths`, puis l'année
-  choisie dès que l'utilisateur clique ◀/▶ (`picked`).
-- `ensureMonth` étant idempotent, cliquer une carte déjà remplie ne duplique rien.
-- Aucune migration ni changement de schéma/backend.
+- **Comptage de références** : l'index `by_receipt` rend la vérif efficace.
+  Le fichier n'est supprimé qu'au dernier déréférencement → plus de référence morte.
+- **Pas d'orphelins en flux normal** : `createReceipt` n'est appelé qu'à
+  l'import confirmé (lignes conservées) ou à l'attache (immédiatement liée à la ligne).
+- **`note` reste par ligne** (inchangé).
+- **Ownership** : `createReceipt`/`maybeDeleteReceipt`/`entryPhotoUrl` vérifient
+  l'utilisateur.
+- **Local uniquement** : le schéma local a déjà `imageStorageId` (données de test) ;
+  le changement de champ est non bloquant (les anciennes lignes de test perdront
+  juste leur lien photo — sans gravité en local). **Prod** n'a pas encore ce schéma.
+- **Déploiement** : schéma + fonctions poussés par le build Vercel (`convex deploy`).
 
 ## Vérification (bout en bout)
-1. `npm run build` doit passer (client + SSR).
-2. App lancée, connecté : sur **/mois**, utiliser ◀/▶ pour aller en **2026**
-   (grille vide), cliquer un mois → il est créé et on arrive sur sa vue.
-3. Dans la vue mensuelle, vérifier que **déc → jan** change d'année (déc 2025 →
-   jan 2026) et **jan → déc** recule d'une année.
-4. Ajouter une ligne dans un mois 2026 → revenir sur **/mois** (2026) : la carte
-   passe de « Vide » à un NET ; le **tableau de bord** sur 2026 reflète les chiffres.
-5. Vérifier que l'app s'ouvre par défaut sur **2025** tant que seules les données
-   2025 existent, puis sur **2026** une fois des mois 2026 créés.
-6. Console navigateur sans erreur.
+1. `npm run build` OK ; `convex dev` recompile (table `receipts`, index, fonctions).
+2. **Import groupé** d'un ticket à 3 articles → 3 lignes créées, toutes liées au
+   **même reçu** (vérifier : 1 seul doc `receipts`, 1 seul fichier). La photo
+   s'affiche dans le détail de chacune des 3 lignes.
+3. **Suppression d'une** des 3 lignes → les 2 autres **gardent leur photo**
+   (le fichier n'est PAS supprimé tant qu'une ligne le référence).
+4. Supprimer la **dernière** ligne référençant le reçu → le fichier + doc `receipts`
+   sont supprimés (plus d'orphelin).
+5. **Attache manuelle** d'une photo sur une ligne (détail) → crée un reçu dédié,
+   s'affiche ; **Remplacer** → ancien reçu nettoyé s'il n'est plus référencé.
+6. **Analyse IA** depuis le détail : inchangée (montant détecté → appliquer).
+7. Console navigateur sans erreur.
 
 ## Récap des changements
-- **Créer** : `src/components/YearSelector.tsx`.
-- **Modifier** : `src/components/MonthView.tsx` (rollover), `src/routes/mois.index.tsx`
-  (sélecteur + clic-créer), `src/routes/index.tsx` (sélecteur + `year`).
-- **Inchangé** : tout le backend Convex (`ensureMonth`/`getMonth`/`listMonths`),
-  la route `/mois/$year/$month`, le seed.
+- **Schéma** : table `receipts` + `entries.receiptId` (remplace `imageStorageId`),
+  index `by_receipt`.
+- **`convex/budget.ts`** : `createReceipt`, `maybeDeleteReceipt`, et adaptation de
+  `importEntries`/`updateEntry`/`removeEntry`/`entryPhotoUrl`.
+- **Front** : `PhotoImportDialog`, `EntryDetailDialog`, `MonthView` passent de
+  `imageStorageId` à `receiptId` (+ appel `createReceipt`).
+- **Inchangé** : `vision.ts`, `src/lib/upload.ts`, `src/lib/speech.ts`, la note par ligne.

@@ -7,7 +7,10 @@ import {
   ChevronRight,
   Copy,
   FileDown,
+  Info,
+  Paperclip,
   Plus,
+  StickyNote,
   Trash2,
   Upload,
 } from 'lucide-react'
@@ -26,6 +29,7 @@ import { generateMonthPdf } from '../lib/pdf'
 import SummaryCards from './SummaryCards'
 import ImportDialog from './ImportDialog'
 import PhotoImportDialog from './PhotoImportDialog'
+import EntryDetailDialog from './EntryDetailDialog'
 
 /**
  * Vue détaillée d'un mois : reproduit l'onglet mensuel de la feuille.
@@ -220,6 +224,8 @@ interface Entry {
   budget: number
   real: number
   section: Section
+  note?: string
+  receiptId?: Id<'receipts'>
 }
 
 /**
@@ -236,6 +242,9 @@ function SectionCard({
 }) {
   const addEntry = useMutation(api.budget.addEntry)
   const [newLabel, setNewLabel] = useState('')
+  // Ligne dont le détail est ouvert (re-dérivée depuis `entries` pour rester à jour).
+  const [selectedId, setSelectedId] = useState<Id<'entries'> | null>(null)
+  const selected = entries.find((e) => e._id === selectedId) ?? null
 
   // Sous-totaux de la section.
   const totals = entries.reduce(
@@ -283,7 +292,7 @@ function SectionCard({
               <th className="w-32 px-4 py-2 text-right font-medium">Prévu</th>
               <th className="w-32 px-4 py-2 text-right font-medium">Réel</th>
               <th className="w-32 px-4 py-2 text-right font-medium">Écart</th>
-              <th className="w-10 px-2 py-2" />
+              <th className="w-24 px-2 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -298,7 +307,12 @@ function SectionCard({
               </tr>
             ) : (
               entries.map((entry) => (
-                <EntryRow key={entry._id} entry={entry} isExpense={isExpense} />
+                <EntryRow
+                  key={entry._id}
+                  entry={entry}
+                  isExpense={isExpense}
+                  onOpenDetail={() => setSelectedId(entry._id)}
+                />
               ))
             )}
           </tbody>
@@ -335,6 +349,11 @@ function SectionCard({
           <Plus className="h-4 w-4" /> Ajouter
         </button>
       </form>
+
+      {/* Détail de la ligne sélectionnée */}
+      {selected && (
+        <EntryDetailDialog entry={selected} onClose={() => setSelectedId(null)} />
+      )}
     </section>
   )
 }
@@ -343,7 +362,15 @@ function SectionCard({
  * Une ligne éditable : libellé + montants prévu/réel modifiables en place.
  * La valeur locale est commitée vers Convex au `blur` (perte de focus).
  */
-function EntryRow({ entry, isExpense }: { entry: Entry; isExpense: boolean }) {
+function EntryRow({
+  entry,
+  isExpense,
+  onOpenDetail,
+}: {
+  entry: Entry
+  isExpense: boolean
+  onOpenDetail: () => void
+}) {
   const updateEntry = useMutation(api.budget.updateEntry)
   const removeEntry = useMutation(api.budget.removeEntry)
 
@@ -385,14 +412,38 @@ function EntryRow({ entry, isExpense }: { entry: Entry; isExpense: boolean }) {
       <td className="px-4 py-1.5 text-right tabular-nums">
         <Diff value={entry.budget - entry.real} isExpense={isExpense} />
       </td>
-      <td className="px-2 py-1.5 text-center">
-        <button
-          className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          title="Supprimer la ligne"
-          onClick={() => void removeEntry({ entryId: entry._id })}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+      <td className="px-2 py-1.5">
+        <div className="flex items-center justify-end gap-1">
+          {/* Indicateurs : photo jointe / note présente */}
+          {entry.receiptId && (
+            <Paperclip
+              className="h-3.5 w-3.5 text-muted-foreground"
+              aria-label="Photo jointe"
+            />
+          )}
+          {entry.note && entry.note.trim() && (
+            <StickyNote
+              className="h-3.5 w-3.5 text-muted-foreground"
+              aria-label="Note"
+            />
+          )}
+          {/* Ouvrir le détail */}
+          <button
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            title="Détails (note, photo…)"
+            onClick={onOpenDetail}
+          >
+            <Info className="h-4 w-4" />
+          </button>
+          {/* Supprimer */}
+          <button
+            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            title="Supprimer la ligne"
+            onClick={() => void removeEntry({ entryId: entry._id })}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </td>
     </tr>
   )

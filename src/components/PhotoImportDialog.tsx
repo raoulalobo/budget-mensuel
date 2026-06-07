@@ -16,6 +16,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { SECTIONS, SECTION_LABELS, type Section } from '../lib/budget'
 import { downscaleImage } from '../lib/image'
+import { uploadImageDataUrl } from '../lib/upload'
 
 /**
  * Fenêtre modale d'import par PHOTO — gère PLUSIEURS images d'un coup.
@@ -54,6 +55,7 @@ interface EditableRow {
   section: Section
   label: string
   amount: string
+  sourceSeq?: number // photo d'origine (pour rattacher l'image stockée)
 }
 
 // Une photo en attente/analyse, avec sa vignette compressée et son état.
@@ -76,6 +78,8 @@ export default function PhotoImportDialog({
 }) {
   const extract = useAction(api.vision.extractEntriesFromImage)
   const importEntries = useMutation(api.budget.importEntries)
+  const generateUploadUrl = useMutation(api.budget.generateUploadUrl)
+  const createReceipt = useMutation(api.budget.createReceipt)
 
   const seqRef = useRef(0) // compteur stable pour numéroter les photos
   const [images, setImages] = useState<PendingImage[]>([])
@@ -135,13 +139,15 @@ export default function PhotoImportDialog({
             imageBase64: img.base64,
             mimeType: img.mimeType,
           })
-          // Fusionne les lignes détectées dans le tableau commun.
+          // Fusionne les lignes détectées dans le tableau commun, en gardant le
+          // lien vers la photo d'origine (sourceSeq) pour la stocker à l'import.
           setRows((rs) => [
             ...rs,
             ...res.rows.map((r) => ({
               section: r.section as Section,
               label: r.label,
               amount: String(r.budget),
+              sourceSeq: img.seq,
             })),
           ])
           if (res.errors.length > 0) {
@@ -192,23 +198,52 @@ export default function PhotoImportDialog({
     setRows((rs) => [...rs, { section: 'variable', label: '', amount: '0' }])
   }
 
-  // Lignes valides prêtes à importer (libellé non vide).
-  const validEntries = rows
-    .map((r) => ({
-      section: r.section,
-      label: r.label.trim(),
-      budget: Number(r.amount) || 0,
-      real: Number(r.amount) || 0,
-    }))
-    .filter((e) => e.label.length > 0)
+  // Lignes conservées (libellé non vide), avec leur lien photo (sourceSeq).
+  const keptRows = rows.filter((r) => r.label.trim().length > 0)
 
   const pendingCount = images.filter((i) => i.status === 'pending').length
 
   async function handleImport() {
-    if (validEntries.length === 0) return
+    if (keptRows.length === 0) return
     setBusy(true)
     try {
-      await importEntries({ monthId, entries: validEntries, replace })
+      // 1) Une photo = un reçu (uploadé + enregistré UNE fois), partagé par toutes
+      //    ses lignes. On ne traite que les photos réellement conservées.
+      const usedSeqs = new Set(
+        keptRows
+          .map((r) => r.sourceSeq)
+          .filter((s): s is number => s !== undefined),
+      )
+      const seqToReceiptId = new Map<number, Id<'receipts'>>()
+      for (const seq of usedSeqs) {
+        const img = images.find((i) => i.seq === seq)
+        if (!img) continue
+        try {
+          const storageId = await uploadImageDataUrl(
+            img.dataUrl,
+            img.mimeType,
+            () => generateUploadUrl(),
+          )
+          const receiptId = await createReceipt({
+            storageId: storageId as Id<'_storage'>,
+          })
+          seqToReceiptId.set(seq, receiptId)
+        } catch {
+          // Échec d'upload/création du reçu : on importe la ligne sans photo.
+        }
+      }
+
+      // 2) Construit les lignes en partageant le reçu de leur photo d'origine.
+      const entries = keptRows.map((r) => ({
+        section: r.section,
+        label: r.label.trim(),
+        budget: Number(r.amount) || 0,
+        real: Number(r.amount) || 0,
+        receiptId:
+          r.sourceSeq !== undefined ? seqToReceiptId.get(r.sourceSeq) : undefined,
+      }))
+
+      await importEntries({ monthId, entries, replace })
       onClose()
     } finally {
       setBusy(false)
@@ -426,11 +461,11 @@ export default function PhotoImportDialog({
           </button>
           <button
             className="app-btn-primary"
-            disabled={busy || validEntries.length === 0}
+            disabled={busy || keptRows.length === 0}
             onClick={handleImport}
           >
             <Upload className="h-4 w-4" />
-            {busy ? 'Import…' : `Importer ${validEntries.length} ligne(s)`}
+            {busy ? 'Import…' : `Importer ${keptRows.length} ligne(s)`}
           </button>
         </div>
       </div>
