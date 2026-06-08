@@ -85,11 +85,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
  *      Unauthenticated → formulaire de connexion / inscription
  *      Authenticated   → l'app (AppShell + page courante)
  */
+// Routes PUBLIQUES (sans authentification ni AppShell) : homepage + pages légales.
+const PUBLIC_PATHS = ['/', '/mentions-legales', '/confidentialite']
+
 function AppGate({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   // Page publique : aucun gating.
-  if (pathname === '/') return <>{children}</>
+  if (PUBLIC_PATHS.includes(pathname)) return <>{children}</>
 
   return (
     <>

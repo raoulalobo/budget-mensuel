@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { Wallet } from 'lucide-react'
 import PasswordInput from './PasswordInput'
@@ -47,7 +48,7 @@ export default function AuthForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
       <div className="app-card w-full max-w-sm p-8">
         {/* En-tête / logo */}
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
@@ -152,6 +153,19 @@ export default function AuthForm() {
           </button>
         </p>
       </div>
+
+      {/* Accès public aux mentions légales depuis l'écran d'authentification. */}
+      <p className="flex items-center gap-3 text-xs text-muted-foreground">
+        <Link to="/" className="hover:text-foreground">
+          Accueil
+        </Link>
+        <Link to="/mentions-legales" className="hover:text-foreground">
+          Mentions légales
+        </Link>
+        <Link to="/confidentialite" className="hover:text-foreground">
+          Confidentialité
+        </Link>
+      </p>
     </div>
   )
 }

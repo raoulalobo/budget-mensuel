@@ -21,6 +21,7 @@ import {
   Check,
 } from 'lucide-react'
 import { useDarkMode } from '../lib/theme'
+import SiteFooter from '../components/SiteFooter'
 
 /**
  * Route "/" : HOMEPAGE PUBLIQUE (point d'entrée de l'application).
@@ -291,18 +292,8 @@ function Home() {
         </section>
       </main>
 
-      {/* ── Pied de page ──────────────────────────────────────────────────── */}
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row">
-          <span className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Wallet className="h-3.5 w-3.5" />
-            </span>
-            Budget mensuel
-          </span>
-          <span>Suivi de budget personnel & partagé.</span>
-        </div>
-      </footer>
+      {/* ── Pied de page (liens + mentions légales) ───────────────────────── */}
+      <SiteFooter />
     </div>
   )
 }
