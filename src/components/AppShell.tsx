@@ -51,7 +51,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
           {/* Logo + titre */}
-          <Link to="/" className="mr-4 flex items-center gap-2 font-bold">
+          <Link to="/tableau" className="mr-4 flex items-center gap-2 font-bold">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Wallet className="h-4 w-4" />
             </span>
@@ -60,7 +60,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
           {/* Liens de navigation. `activeProps` met en évidence l'onglet courant. */}
           <nav className="flex items-center gap-1">
-            <NavLink to="/" icon={<LayoutDashboard className="h-4 w-4" />}>
+            <NavLink to="/tableau" icon={<LayoutDashboard className="h-4 w-4" />}>
               Tableau
             </NavLink>
             <NavLink to="/mois" icon={<CalendarDays className="h-4 w-4" />}>

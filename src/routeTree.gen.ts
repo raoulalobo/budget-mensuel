@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TableauRouteImport } from './routes/tableau'
 import { Route as RecurrentesRouteImport } from './routes/recurrentes'
 import { Route as ProfilRouteImport } from './routes/profil'
 import { Route as PartageRouteImport } from './routes/partage'
@@ -19,6 +20,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as MoisIndexRouteImport } from './routes/mois.index'
 import { Route as MoisYearMonthRouteImport } from './routes/mois.$year.$month'
 
+const TableauRoute = TableauRouteImport.update({
+  id: '/tableau',
+  path: '/tableau',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecurrentesRoute = RecurrentesRouteImport.update({
   id: '/recurrentes',
   path: '/recurrentes',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/partage': typeof PartageRoute
   '/profil': typeof ProfilRoute
   '/recurrentes': typeof RecurrentesRoute
+  '/tableau': typeof TableauRoute
   '/mois/': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/partage': typeof PartageRoute
   '/profil': typeof ProfilRoute
   '/recurrentes': typeof RecurrentesRoute
+  '/tableau': typeof TableauRoute
   '/mois': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/partage': typeof PartageRoute
   '/profil': typeof ProfilRoute
   '/recurrentes': typeof RecurrentesRoute
+  '/tableau': typeof TableauRoute
   '/mois/': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/partage'
     | '/profil'
     | '/recurrentes'
+    | '/tableau'
     | '/mois/'
     | '/mois/$year/$month'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/partage'
     | '/profil'
     | '/recurrentes'
+    | '/tableau'
     | '/mois'
     | '/mois/$year/$month'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/partage'
     | '/profil'
     | '/recurrentes'
+    | '/tableau'
     | '/mois/'
     | '/mois/$year/$month'
   fileRoutesById: FileRoutesById
@@ -143,12 +155,20 @@ export interface RootRouteChildren {
   PartageRoute: typeof PartageRoute
   ProfilRoute: typeof ProfilRoute
   RecurrentesRoute: typeof RecurrentesRoute
+  TableauRoute: typeof TableauRoute
   MoisIndexRoute: typeof MoisIndexRoute
   MoisYearMonthRoute: typeof MoisYearMonthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tableau': {
+      id: '/tableau'
+      path: '/tableau'
+      fullPath: '/tableau'
+      preLoaderRoute: typeof TableauRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recurrentes': {
       id: '/recurrentes'
       path: '/recurrentes'
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartageRoute: PartageRoute,
   ProfilRoute: ProfilRoute,
   RecurrentesRoute: RecurrentesRoute,
+  TableauRoute: TableauRoute,
   MoisIndexRoute: MoisIndexRoute,
   MoisYearMonthRoute: MoisYearMonthRoute,
 }

@@ -1,515 +1,308 @@
-import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useMutation, useQuery } from 'convex/react'
+import { Authenticated, Unauthenticated, AuthLoading } from 'convex/react'
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import {
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  FileDown,
+  Wallet,
+  Sun,
+  Moon,
+  ArrowRight,
+  LayoutDashboard,
+  CalendarDays,
+  PiggyBank,
+  Target,
+  Repeat,
+  Camera,
   Sparkles,
+  Users,
+  StickyNote,
+  Tags,
+  AlertTriangle,
+  FileDown,
+  ShieldCheck,
+  Check,
 } from 'lucide-react'
-import { api } from '../../convex/_generated/api'
-import {
-  EXPENSE_SECTIONS,
-  SECTION_COLORS,
-  SECTION_LABELS,
-  formatEUR,
-  monthName,
-} from '../lib/budget'
-import { generateYearPdf } from '../lib/pdf'
-import YearSelector from '../components/YearSelector'
-import SummaryCards from '../components/SummaryCards'
-import {
-  Skeleton,
-  SkeletonStatCards,
-  SkeletonChartCard,
-} from '../components/Skeleton'
+import { useDarkMode } from '../lib/theme'
 
 /**
- * Route "/" : tableau de bord annuel.
+ * Route "/" : HOMEPAGE PUBLIQUE (point d'entrée de l'application).
  *
- * Agrège tous les mois de l'utilisateur pour afficher :
- *  - 4 indicateurs clés (Revenus, Dépenses, Net annuels + Patrimoine)
- *  - un graphique barres Revenus vs Dépenses par mois
- *  - une courbe d'évolution du Net mensuel
- *  - un anneau de répartition des dépenses du dernier mois renseigné
- *
- * Si la base est vide, on propose d'importer les données de démo (Janvier 2025).
+ * Page de présentation accessible à TOUS (connectés ou non) : elle récapitule
+ * l'application et ses fonctionnalités, avec des appels à l'action vers le
+ * budget (`/tableau`). Elle ne dépend PAS de l'AppShell ni de l'authentification
+ * (cf. le gate route-aware dans `src/routes/__root.tsx`).
  */
 export const Route = createFileRoute('/')({
-  component: Dashboard,
+  component: Home,
 })
 
-function Dashboard() {
-  const months = useQuery(api.budget.listMonths)
-  const assets = useQuery(api.budget.listAssets)
-  // Année sélectionnée (hook appelé inconditionnellement, avant tout return).
-  const [picked, setPicked] = useState<number | null>(null)
-  // Mois sélectionné pour le récap mensuel (null = dernier mois renseigné).
-  const [pickedMonth, setPickedMonth] = useState<number | null>(null)
-
-  // Tant que les données chargent : esquisse du tableau de bord.
-  if (months === undefined || assets === undefined) {
-    return (
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-7 w-64" />
-          <Skeleton className="h-9 w-40" />
-        </div>
-        <SkeletonStatCards />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <SkeletonChartCard />
-          <SkeletonChartCard />
-        </div>
-      </div>
-    )
-  }
-
-  // Base vide => écran d'accueil avec import de démo.
-  if (months.length === 0) {
-    return <EmptyState />
-  }
-
-  // Année affichée : la plus récente avec des données par défaut, sinon en cours.
-  const currentYear = new Date().getFullYear()
-  const defaultYear = Math.max(...months.map((m) => m.year))
-  const year = picked ?? (defaultYear || currentYear)
-
-  // ── Agrégats annuels (sur les montants réels) ──────────────────────────────
-  const yearMonths = months.filter((m) => m.year === year)
-  const totalIncome = yearMonths.reduce((s, m) => s + m.summary.incomeReal, 0)
-  const totalExpense = yearMonths.reduce((s, m) => s + m.summary.expenseReal, 0)
-  const totalNet = totalIncome - totalExpense
-  const patrimoine = assets.reduce((s, a) => s + a.amount, 0)
-
-  // ── Données du graphique mensuel (1 → 12) ──────────────────────────────────
-  const byMonth = new Map(yearMonths.map((m) => [m.month, m.summary]))
-  const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    const m = i + 1
-    const s = byMonth.get(m)
-    return {
-      mois: monthName(m).slice(0, 3), // "Jan", "Fév"...
-      Revenus: round(s?.incomeReal ?? 0),
-      Dépenses: round(s?.expenseReal ?? 0),
-      Net: round(s?.netReal ?? 0),
-    }
-  })
-
-  // Dernier mois renseigné (pour l'anneau de répartition).
-  const lastFilled = [...yearMonths]
-    .filter((m) => m.summary.incomeReal !== 0 || m.summary.expenseReal !== 0)
-    .sort((a, b) => b.month - a.month)[0]
-
-  // Mois affiché dans le récap mensuel : choix explicite, sinon dernier mois
-  // renseigné, sinon le mois en cours.
-  const recapMonth =
-    pickedMonth ?? lastFilled?.month ?? new Date().getMonth() + 1
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Tableau de bord — {year}</h1>
-          <p className="text-sm text-muted-foreground">
-            Vue d'ensemble de votre année budgétaire.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Sélecteur d'année : on réinitialise aussi le mois du récap mensuel
-              pour repartir sur le dernier mois renseigné de la nouvelle année. */}
-          <YearSelector
-            year={year}
-            onChange={(y) => {
-              setPicked(y)
-              setPickedMonth(null)
-            }}
-          />
-          {/* Export du bilan annuel en PDF */}
-          <button
-            className="app-btn-ghost"
-            onClick={() =>
-              generateYearPdf({
-                year,
-              totals: {
-                income: totalIncome,
-                expense: totalExpense,
-                net: totalNet,
-                assets: patrimoine,
-              },
-              months: Array.from({ length: 12 }, (_, i) => {
-                const s = byMonth.get(i + 1)
-                return {
-                  name: monthName(i + 1),
-                  income: s?.incomeReal ?? 0,
-                  expense: s?.expenseReal ?? 0,
-                  net: s?.netReal ?? 0,
-                }
-              }),
-            })
-          }
-        >
-            <FileDown className="h-4 w-4" /> Exporter PDF
-          </button>
-        </div>
-      </div>
-
-      {/* Indicateurs clés */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Revenus (année)" value={totalIncome} color="#16a34a" />
-        <Kpi label="Dépenses (année)" value={totalExpense} color="#dc2626" />
-        <Kpi
-          label="Net (année)"
-          value={totalNet}
-          color={totalNet >= 0 ? '#16a34a' : '#dc2626'}
-        />
-        <Kpi label="Patrimoine (Avoir)" value={patrimoine} color="#7c3aed" />
-      </div>
-
-      {/* Graphiques principaux */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard title="Revenus vs Dépenses par mois">
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={monthlyData} margin={{ left: -10, right: 8, top: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="mois" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => formatEUR(v)} />
-              <Legend />
-              <Bar dataKey="Revenus" fill="#16a34a" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Dépenses" fill="#dc2626" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Évolution du solde net">
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={monthlyData} margin={{ left: -10, right: 8, top: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="mois" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => formatEUR(v)} />
-              <Line
-                type="monotone"
-                dataKey="Net"
-                stroke="#2563eb"
-                strokeWidth={2.5}
-                dot={{ r: 3 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* Répartition des dépenses : dernier mois renseigné + sur l'année */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {lastFilled && <ExpenseBreakdown year={year} month={lastFilled.month} />}
-        <YearExpenseBreakdown year={year} />
-      </div>
-
-      {/* ── Récap mensuel (sous le tableau de bord annuel) ─────────────────── */}
-      <MonthlyDashboard
-        year={year}
-        month={recapMonth}
-        onPrev={() => setPickedMonth(Math.max(1, recapMonth - 1))}
-        onNext={() => setPickedMonth(Math.min(12, recapMonth + 1))}
-      />
-    </div>
-  )
-}
-
-/**
- * Récap d'UN mois, affiché sous le tableau de bord annuel.
- *
- * Sélecteur de mois (◀/▶) + 3 cartes synthétiques (Revenus/Dépenses/Net), une
- * prévision (reste à dépenser + net projeté), une alerte de dépassement, et
- * l'anneau de répartition des dépenses du mois. Lecture seule (aucune écriture).
- *
- * Réutilise `SummaryCards` et `ExpenseBreakdown` ; la requête `getMonth` est
- * partagée (dédupliquée) avec l'anneau, donc sans surcoût réseau.
- */
-function MonthlyDashboard({
-  year,
-  month,
-  onPrev,
-  onNext,
-}: {
-  year: number
-  month: number
-  onPrev: () => void
-  onNext: () => void
-}) {
-  const data = useQuery(api.budget.getMonth, { year, month })
-
-  // Lignes de dépense dont le réel dépasse le prévu (pour l'alerte).
-  const overspent =
-    data?.entries.filter(
-      (e) => EXPENSE_SECTIONS.includes(e.section) && e.real > e.budget,
-    ) ?? []
-  const overTotal = overspent.reduce((s, e) => s + (e.real - e.budget), 0)
-
-  return (
-    <section className="flex flex-col gap-4">
-      {/* En-tête : titre + sélecteur de mois + lien vers le détail */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            className="app-btn-ghost px-2 disabled:opacity-30"
-            onClick={onPrev}
-            disabled={month <= 1}
-            aria-label="Mois précédent"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <h2 className="text-lg font-bold">
-            Récap mensuel — {monthName(month)} {year}
-          </h2>
-          <button
-            className="app-btn-ghost px-2 disabled:opacity-30"
-            onClick={onNext}
-            disabled={month >= 12}
-            aria-label="Mois suivant"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        <Link
-          to="/mois/$year/$month"
-          params={{ year: String(year), month: String(month) }}
-          className="app-btn-ghost"
-        >
-          Voir le détail
-        </Link>
-      </div>
-
-      {data === undefined ? (
-        <SkeletonStatCards count={3} className="grid gap-4 sm:grid-cols-3" />
-      ) : data === null ? (
-        <div className="app-card p-6 text-center text-muted-foreground">
-          Aucune donnée pour {monthName(month)} {year}.
-        </div>
-      ) : (
-        <>
-          {/* 3 cartes synthétiques du mois */}
-          <SummaryCards summary={data.summary} />
-
-          {/* Alerte de dépassement (masquée si aucun poste concerné) */}
-          {overspent.length > 0 && (
-            <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>
-                <strong>
-                  {overspent.length} poste{overspent.length > 1 ? 's' : ''} en
-                  dépassement
-                </strong>{' '}
-                — total dépassé :{' '}
-                <strong className="tabular-nums">+{formatEUR(overTotal)}</strong>
-              </span>
-            </div>
-          )}
-
-          {/* Prévision : reste à dépenser + net projeté si le budget est tenu */}
-          <div className="app-card flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-3 text-sm">
-            <span className="text-muted-foreground">Prévision du mois</span>
-            <span>
-              Reste à dépenser :{' '}
-              <strong className="tabular-nums">
-                {formatEUR(
-                  Math.max(0, data.summary.expenseBudget - data.summary.expenseReal),
-                )}
-              </strong>
-            </span>
-            <span>
-              Net projeté (budget tenu) :{' '}
-              <strong
-                className="tabular-nums"
-                style={{ color: data.summary.netBudget >= 0 ? '#16a34a' : '#dc2626' }}
-              >
-                {formatEUR(data.summary.netBudget)}
-              </strong>
-            </span>
-          </div>
-
-          {/* Anneau de répartition des dépenses du mois (composant réutilisé) */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <ExpenseBreakdown year={year} month={month} />
-          </div>
-        </>
-      )}
-    </section>
-  )
-}
-
-/**
- * Anneau de répartition des dépenses RÉELLES par section sur toute l'année.
- */
-function YearExpenseBreakdown({ year }: { year: number }) {
-  const data = useQuery(api.budget.yearExpenseBreakdown, { year })
-  if (!data) return null
-  const slices = data
-    .map((d) => ({
-      name: SECTION_LABELS[d.section as keyof typeof SECTION_LABELS] ?? d.section,
-      value: round(d.total),
-      color:
-        SECTION_COLORS[d.section as keyof typeof SECTION_COLORS] ?? '#888',
-    }))
-    .filter((s) => s.value > 0)
-  if (slices.length === 0) return null
-
-  return (
-    <ChartCard title={`Répartition des dépenses — année ${year}`}>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={slices}
-            dataKey="value"
-            nameKey="name"
-            cx="50%"
-            cy="50%"
-            innerRadius={70}
-            outerRadius={110}
-            paddingAngle={2}
-          >
-            {slices.map((s) => (
-              <Cell key={s.name} fill={s.color} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v: number) => formatEUR(v)} />
-          <Legend />
-        </PieChart>
-      </ResponsiveContainer>
-    </ChartCard>
-  )
-}
-
-/**
- * Anneau de répartition des dépenses (par section) d'un mois donné.
- * Récupère le détail du mois via `getMonth` pour additionner par section.
- */
-function ExpenseBreakdown({ year, month }: { year: number; month: number }) {
-  const data = useQuery(api.budget.getMonth, { year, month })
-  if (!data) return null
-
-  // Total réel par section de dépense.
-  const slices = EXPENSE_SECTIONS.map((section) => ({
-    name: SECTION_LABELS[section],
-    value: round(
-      data.entries
-        .filter((e) => e.section === section)
-        .reduce((s, e) => s + e.real, 0),
-    ),
-    color: SECTION_COLORS[section],
-  })).filter((s) => s.value > 0)
-
-  if (slices.length === 0) return null
-
-  return (
-    <ChartCard title={`Répartition des dépenses — ${monthName(month)} ${year}`}>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={slices}
-            dataKey="value"
-            nameKey="name"
-            cx="50%"
-            cy="50%"
-            innerRadius={70}
-            outerRadius={110}
-            paddingAngle={2}
-          >
-            {slices.map((s) => (
-              <Cell key={s.name} fill={s.color} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v: number) => formatEUR(v)} />
-          <Legend />
-        </PieChart>
-      </ResponsiveContainer>
-    </ChartCard>
-  )
-}
-
-/** Indicateur clé : une carte avec un libellé et un montant coloré. */
-function Kpi({
-  label,
-  value,
-  color,
-}: {
-  label: string
-  value: number
-  color: string
-}) {
-  return (
-    <div className="app-card p-5">
-      <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color }}>
-        {formatEUR(value)}
-      </p>
-    </div>
-  )
-}
-
-/** Conteneur de graphique (titre + zone). */
-function ChartCard({
-  title,
-  children,
-}: {
+/** Liste des fonctionnalités mises en avant (icône + titre + description). */
+const FEATURES: Array<{
+  icon: React.ReactNode
   title: string
-  children: React.ReactNode
-}) {
+  desc: string
+}> = [
+  {
+    icon: <CalendarDays className="h-5 w-5" />,
+    title: 'Budget mensuel',
+    desc: 'Revenus, dépenses fixes/variables, crédits et épargne — avec le prévu et le réel côte à côte, mois par mois.',
+  },
+  {
+    icon: <LayoutDashboard className="h-5 w-5" />,
+    title: 'Tableau de bord & graphiques',
+    desc: 'Vue annuelle et récap mensuel : revenus vs dépenses, évolution du net, répartition des dépenses.',
+  },
+  {
+    icon: <PiggyBank className="h-5 w-5" />,
+    title: 'Patrimoine (Avoir)',
+    desc: 'Suivez vos placements et l’évolution de votre patrimoine dans le temps.',
+  },
+  {
+    icon: <Target className="h-5 w-5" />,
+    title: 'Objectifs d’épargne',
+    desc: 'Définissez des objectifs (fonds d’urgence, vacances…) et suivez leur progression.',
+  },
+  {
+    icon: <Repeat className="h-5 w-5" />,
+    title: 'Lignes récurrentes',
+    desc: 'Loyer, abonnements, salaire… des modèles à appliquer à n’importe quel mois en un clic.',
+  },
+  {
+    icon: <Camera className="h-5 w-5" />,
+    title: 'Import CSV & photo (IA)',
+    desc: 'Importez vos relevés, ou prenez en photo un ticket : l’IA en extrait les montants automatiquement.',
+  },
+  {
+    icon: <Sparkles className="h-5 w-5" />,
+    title: 'Assistant IA & récaps',
+    desc: 'Un assistant conversationnel qui analyse vos données et des récapitulatifs mensuels générés par IA.',
+  },
+  {
+    icon: <Users className="h-5 w-5" />,
+    title: 'Budget partagé',
+    desc: 'Invitez votre conjoint·e par code, avec des rôles éditeur ou lecteur. Idéal pour un foyer.',
+  },
+  {
+    icon: <StickyNote className="h-5 w-5" />,
+    title: 'Notes & reçus',
+    desc: 'Ajoutez des notes (clavier ou dictée vocale) et joignez des photos justificatives à chaque ligne.',
+  },
+  {
+    icon: <Tags className="h-5 w-5" />,
+    title: 'Tags & recherche',
+    desc: 'Étiquetez vos lignes et retrouvez-les instantanément par libellé ou par tag.',
+  },
+  {
+    icon: <AlertTriangle className="h-5 w-5" />,
+    title: 'Alertes & prévision',
+    desc: 'Repérez les postes en dépassement et anticipez votre reste à dépenser et votre net projeté.',
+  },
+  {
+    icon: <FileDown className="h-5 w-5" />,
+    title: 'Export PDF & mode sombre',
+    desc: 'Exportez vos bilans mensuels et annuels en PDF, avec une interface en thème clair ou sombre.',
+  },
+]
+
+/** Étapes « Comment ça marche ». */
+const STEPS: Array<{ title: string; desc: string }> = [
+  {
+    title: 'Créez votre compte',
+    desc: 'Inscription en quelques secondes avec un email et un mot de passe.',
+  },
+  {
+    title: 'Saisissez ou importez',
+    desc: 'Ajoutez vos mois à la main, importez un CSV, ou photographiez vos tickets.',
+  },
+  {
+    title: 'Pilotez & partagez',
+    desc: 'Suivez vos graphiques, fixez vos objectifs et partagez le budget avec vos proches.',
+  },
+]
+
+function Home() {
+  const { dark, toggle } = useDarkMode()
+
   return (
-    <div className="app-card p-5">
-      <h2 className="mb-4 font-semibold">{title}</h2>
-      {children}
+    <div className="min-h-screen">
+      {/* ── Barre supérieure ──────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
+          <span className="flex items-center gap-2 font-bold">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Wallet className="h-4 w-4" />
+            </span>
+            Budget mensuel
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggle}
+              className="app-btn-ghost px-2"
+              title={dark ? 'Passer en clair' : 'Passer en sombre'}
+              aria-label="Basculer le thème"
+            >
+              {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            {/* CTA d'en-tête, adapté à l'état d'authentification. */}
+            <AuthLoading>
+              <Link to="/tableau" className="app-btn-primary">
+                Accéder au budget
+              </Link>
+            </AuthLoading>
+            <Unauthenticated>
+              <Link to="/tableau" className="app-btn-ghost hidden sm:inline-flex">
+                Se connecter
+              </Link>
+              <Link to="/tableau" className="app-btn-primary">
+                Créer un compte
+              </Link>
+            </Unauthenticated>
+            <Authenticated>
+              <Link to="/tableau" className="app-btn-primary">
+                Accéder à mon budget
+              </Link>
+            </Authenticated>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        {/* ── Héro ────────────────────────────────────────────────────────── */}
+        <section className="mx-auto max-w-6xl px-4 pb-12 pt-16 text-center sm:pt-24">
+          <span className="app-badge mx-auto mb-5 inline-flex items-center gap-1.5 bg-primary/10 px-3 py-1 text-primary">
+            <Sparkles className="h-3.5 w-3.5" /> Budget, patrimoine, épargne &
+            IA
+          </span>
+          <h1 className="mx-auto max-w-3xl text-4xl font-bold leading-tight sm:text-5xl">
+            Gérez votre argent,{' '}
+            <span className="text-primary">simplement et à plusieurs</span>.
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
+            Suivez votre budget mensuel, votre patrimoine et vos objectifs
+            d’épargne. Importez vos tickets par photo, laissez l’IA résumer vos
+            mois, et partagez tout avec votre foyer.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <AuthLoading>
+              <Link to="/tableau" className="app-btn-primary px-6 py-2.5 text-base">
+                Accéder au budget <ArrowRight className="h-4 w-4" />
+              </Link>
+            </AuthLoading>
+            <Unauthenticated>
+              <Link to="/tableau" className="app-btn-primary px-6 py-2.5 text-base">
+                Commencer gratuitement <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Unauthenticated>
+            <Authenticated>
+              <Link to="/tableau" className="app-btn-primary px-6 py-2.5 text-base">
+                Accéder à mon budget <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Authenticated>
+            <a href="#fonctionnalites" className="app-btn-ghost px-5 py-2.5 text-base">
+              Voir les fonctionnalités
+            </a>
+          </div>
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5" /> Vos données restent privées —
+            supprimables à tout moment.
+          </p>
+        </section>
+
+        {/* ── Fonctionnalités ─────────────────────────────────────────────── */}
+        <section
+          id="fonctionnalites"
+          className="mx-auto max-w-6xl scroll-mt-20 px-4 py-12"
+        >
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl font-bold sm:text-3xl">
+              Tout ce qu’il faut pour votre budget
+            </h2>
+            <p className="mt-2 text-muted-foreground">
+              Une application complète, du suivi quotidien au pilotage annuel.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="app-card p-5">
+                <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  {f.icon}
+                </span>
+                <h3 className="font-semibold">{f.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Comment ça marche ───────────────────────────────────────────── */}
+        <section className="mx-auto max-w-6xl px-4 py-12">
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl font-bold sm:text-3xl">Comment ça marche</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <div key={s.title} className="app-card p-5">
+                <span className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold">
+                  {i + 1}
+                </span>
+                <h3 className="font-semibold">{s.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Bloc CTA final ──────────────────────────────────────────────── */}
+        <section className="mx-auto max-w-6xl px-4 py-12">
+          <div className="app-card flex flex-col items-center gap-4 p-8 text-center sm:p-12">
+            <h2 className="text-2xl font-bold sm:text-3xl">
+              Prêt·e à reprendre le contrôle de votre budget ?
+            </h2>
+            <p className="max-w-xl text-muted-foreground">
+              Créez votre espace en quelques secondes. Mode sombre, partage et
+              IA inclus.
+            </p>
+            <ul className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-muted-foreground">
+              <li className="flex items-center gap-1.5">
+                <Check className="h-4 w-4 text-primary" /> Gratuit
+              </li>
+              <li className="flex items-center gap-1.5">
+                <Check className="h-4 w-4 text-primary" /> Sans engagement
+              </li>
+              <li className="flex items-center gap-1.5">
+                <Moon className="h-4 w-4 text-primary" /> Thème clair/sombre
+              </li>
+            </ul>
+            <AuthLoading>
+              <Link to="/tableau" className="app-btn-primary px-6 py-2.5 text-base">
+                Accéder au budget <ArrowRight className="h-4 w-4" />
+              </Link>
+            </AuthLoading>
+            <Unauthenticated>
+              <Link to="/tableau" className="app-btn-primary px-6 py-2.5 text-base">
+                Créer mon compte <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Unauthenticated>
+            <Authenticated>
+              <Link to="/tableau" className="app-btn-primary px-6 py-2.5 text-base">
+                Accéder à mon budget <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Authenticated>
+          </div>
+        </section>
+      </main>
+
+      {/* ── Pied de page ──────────────────────────────────────────────────── */}
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row">
+          <span className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Wallet className="h-3.5 w-3.5" />
+            </span>
+            Budget mensuel
+          </span>
+          <span>Suivi de budget personnel & partagé.</span>
+        </div>
+      </footer>
     </div>
   )
-}
-
-/** Écran affiché quand l'utilisateur n'a encore aucune donnée. */
-function EmptyState() {
-  const seed = useMutation(api.seed.seedDemo)
-
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="app-card max-w-md p-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Sparkles className="h-6 w-6" />
-        </div>
-        <h1 className="text-xl font-bold">Bienvenue dans votre budget</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Votre espace est vide. Importez les données de démonstration
-          (Janvier 2025 + patrimoine) pour découvrir l'application, ou
-          commencez à saisir vos propres mois.
-        </p>
-        <div className="mt-6 flex flex-col gap-2">
-          <button className="app-btn-primary" onClick={() => void seed({})}>
-            <Download className="h-4 w-4" /> Importer les données de démo
-          </button>
-          <Link to="/mois" className="app-btn-ghost">
-            Saisir mes propres données
-          </Link>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Arrondit à 2 décimales pour des graphiques propres. */
-function round(n: number): number {
-  return Math.round(n * 100) / 100
 }
