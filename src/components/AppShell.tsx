@@ -22,6 +22,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useDarkMode } from '../lib/theme'
 import { BudgetRoleProvider, useBudgetRole } from '../lib/budgetRole'
+import { Avatar } from '../routes/profil'
 
 /**
  * Habillage (layout) de l'application pour les pages authentifiées.
@@ -85,6 +86,8 @@ function Shell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-1">
             {/* Sélecteur d'espace budget partagé */}
             <BudgetSwitcher />
+            {/* Accès au profil (avatar + pseudo) */}
+            <ProfileButton />
             {/* Bascule de thème clair/sombre */}
             <button
               type="button"
@@ -187,6 +190,28 @@ function BudgetSwitcher() {
 /** Libellé français court d'un rôle. */
 function roleLabel(role: 'owner' | 'editor' | 'viewer'): string {
   return role === 'owner' ? 'propriétaire' : role === 'editor' ? 'éditeur' : 'lecteur'
+}
+
+/**
+ * Bouton d'accès au profil : avatar (ou initiale) + pseudo, lien vers /profil.
+ * Mis en évidence quand on est sur la page profil (`activeProps`).
+ */
+function ProfileButton() {
+  const me = useQuery(api.users.me)
+  if (!me) return null
+  return (
+    <Link
+      to="/profil"
+      className="app-btn-ghost px-2"
+      activeProps={{ className: 'app-btn px-2 bg-accent text-accent-foreground' }}
+      title="Mon profil"
+    >
+      <Avatar avatarUrl={me.avatarUrl} name={me.name} email={me.email} size={24} />
+      <span className="hidden max-w-28 truncate sm:inline">
+        {me.name ?? me.email ?? 'Profil'}
+      </span>
+    </Link>
+  )
 }
 
 /**

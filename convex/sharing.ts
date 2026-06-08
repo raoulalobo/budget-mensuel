@@ -100,13 +100,14 @@ export async function requireWrite(
 // Helpers internes
 // ───────────────────────────────────────────────────────────────────────────
 
-/** Libellé lisible d'un utilisateur (email, sinon nom, sinon « Utilisateur »). */
+/** Libellé lisible d'un utilisateur (pseudo, sinon email, sinon « Utilisateur »). */
 async function userLabel(
   ctx: QueryCtx | MutationCtx,
   userId: Id<'users'>,
 ): Promise<string> {
   const u = await ctx.db.get(userId)
-  return u?.email ?? u?.name ?? 'Utilisateur'
+  // Le pseudo (users.name, défini depuis la page Profil) prime sur l'email.
+  return u?.name ?? u?.email ?? 'Utilisateur'
 }
 
 // Alphabet sans caractères ambigus (pas de 0/O/1/I) pour les codes d'invitation.

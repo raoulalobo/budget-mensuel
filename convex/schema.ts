@@ -186,4 +186,15 @@ export default defineSchema({
     userId: v.id('users'),
     ownerId: v.id('users'),
   }).index('by_user', ['userId']),
+
+  /**
+   * Profil utilisateur (données de compte complémentaires à la table `users`
+   * d'auth, qu'on évite de modifier directement). Aujourd'hui : l'AVATAR, stocké
+   * comme fichier (file storage Convex). Le pseudo, lui, vit dans `users.name`.
+   * Exemple : { userId: Alice, avatarId: <_storage> }.
+   */
+  userProfiles: defineTable({
+    userId: v.id('users'),
+    avatarId: v.optional(v.id('_storage')),
+  }).index('by_user', ['userId']),
 })
