@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { Wallet } from 'lucide-react'
+import { Wallet, ArrowLeft } from 'lucide-react'
 import PasswordInput from './PasswordInput'
 
 /**
@@ -49,19 +49,34 @@ export default function AuthForm() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
-      <div className="app-card w-full max-w-sm p-8">
-        {/* En-tête / logo */}
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Wallet className="h-6 w-6" />
+      <div className="w-full max-w-sm">
+        {/* Lien de retour vers la homepage publique. */}
+        <Link
+          to="/"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Retour à l'accueil
+        </Link>
+
+        <div className="app-card p-8">
+          {/* En-tête / logo (cliquable → homepage) */}
+          <div className="mb-6 flex flex-col items-center gap-2 text-center">
+            <Link
+              to="/"
+              className="flex flex-col items-center gap-2"
+              title="Retour à l'accueil"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <Wallet className="h-6 w-6" />
+              </span>
+              <span className="text-xl font-bold">Budget mensuel</span>
+            </Link>
+            <p className="text-sm text-muted-foreground">
+              {mode === 'signIn'
+                ? 'Connectez-vous pour accéder à votre budget'
+                : 'Créez un compte pour démarrer votre budget'}
+            </p>
           </div>
-          <h1 className="text-xl font-bold">Budget mensuel</h1>
-          <p className="text-sm text-muted-foreground">
-            {mode === 'signIn'
-              ? 'Connectez-vous pour accéder à votre budget'
-              : 'Créez un compte pour démarrer votre budget'}
-          </p>
-        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -152,13 +167,11 @@ export default function AuthForm() {
             {mode === 'signIn' ? 'Créer un compte' : 'Se connecter'}
           </button>
         </p>
+        </div>
       </div>
 
       {/* Accès public aux mentions légales depuis l'écran d'authentification. */}
       <p className="flex items-center gap-3 text-xs text-muted-foreground">
-        <Link to="/" className="hover:text-foreground">
-          Accueil
-        </Link>
         <Link to="/mentions-legales" className="hover:text-foreground">
           Mentions légales
         </Link>
