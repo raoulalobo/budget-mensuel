@@ -8,14 +8,19 @@ visualiser le tout sur un tableau de bord avec graphiques.
 ## Fonctionnalités
 
 - **Authentification** email + mot de passe (Convex Auth)
+- **Budgets multi-années** : sélecteur d'année + création de n'importe quel mois
 - **Vue mensuelle** : sections Revenus / Dépenses fixes / variables / Crédits /
-  Épargne, édition inline (prévu vs réel), ajout/suppression de lignes
+  Épargne, édition inline (prévu vs réel), **modale d'ajout** complète
+- **Détail des lignes** : justificatifs (photos partagées via « reçus »),
+  **notes (clavier ou dictée vocale)**, analyse IA d'un justificatif
 - **Tableau de bord** annuel : KPIs + graphiques (barres, courbe, anneau)
 - **Avoir** : suivi du patrimoine / placements
 - **Objectifs d'épargne** : cibles avec barres de progression
+- **Lignes récurrentes** : modèles (loyer, abonnements…) appliqués à un mois en un clic
+- **Récap mensuel IA** : synthèse + conseils d'économie générés par **DeepSeek**
 - **Import CSV/TSV** dans un mois (coller ou fichier, section auto ou imposée)
-- **Import par photo** : prendre/charger une photo d'un document (paie, facture,
-  ticket) analysée par un LLM vision (Claude), aperçu éditable puis ajout
+- **Import par photo** : photo d'un document (paie, facture, ticket) analysée par
+  un LLM **vision (Claude)**, multi-documents en parallèle, aperçu éditable
 - **Duplication** d'un mois vers le suivant (charges récurrentes, réel remis à 0)
 - **Export PDF** : bilan d'un mois et bilan annuel (jsPDF)
 
@@ -48,18 +53,24 @@ Janvier 2025 et le patrimoine.
 > `VITE_CONVEX_URL`). Pour passer plus tard en cloud : `npx convex dev` puis
 > suivre l'invite de connexion.
 
-### Import par photo (vision Claude)
+### Clés IA (variables d'environnement Convex)
 
-L'analyse d'image utilise l'API **Anthropic (Claude)**. Configurez la clé comme
-**variable d'environnement Convex** (côté serveur — JAMAIS en `VITE_*`, sinon
-elle serait exposée dans le bundle client) :
+Deux fonctions IA, chacune avec son fournisseur. Configurez les clés comme
+**variables d'environnement Convex** (côté serveur — JAMAIS en `VITE_*`, sinon
+elles seraient exposées dans le bundle client) :
 
 ```bash
+# Import par photo + analyse d'un justificatif → vision Claude (Anthropic)
 npx convex env set ANTHROPIC_API_KEY sk-ant-...
-# Optionnels :
-npx convex env set ANTHROPIC_MODEL claude-sonnet-4-6        # modèle par défaut
-npx convex env set ANTHROPIC_BASE_URL https://api.anthropic.com
+# (optionnels) ANTHROPIC_MODEL (défaut claude-sonnet-4-6), ANTHROPIC_BASE_URL
+
+# Récap mensuel IA → DeepSeek (API compatible OpenAI)
+npx convex env set DEEPSEEK_API_KEY sk-...
+# (optionnels) DEEPSEEK_MODEL (défaut deepseek-chat), DEEPSEEK_BASE_URL
 ```
+
+> Le **récap** est une tâche texte → DeepSeek (format OpenAI, portable). La
+> **vision** reste sur Claude car DeepSeek V4 est texte uniquement.
 
 - Modèle par défaut : `claude-sonnet-4-6` (vision + bon rapport coût/latence).
 - Coût indicatif : ~0,01–0,02 $ par photo (l'image est compressée côté client
@@ -76,9 +87,13 @@ npx convex env set ANTHROPIC_BASE_URL https://api.anthropic.com
 
 ```
 convex/                 # Backend Convex
-  schema.ts             # Tables : users (auth), months, entries, assets
-  budget.ts             # CRUD lignes/mois + résumés + import + duplication
+  schema.ts             # Tables : users, months, entries, assets, receipts,
+                        #          savingsGoals, recurringLines
+  budget.ts             # CRUD lignes/mois + résumés + import + duplication + reçus
   goals.ts              # CRUD des objectifs d'épargne
+  recurring.ts          # Lignes récurrentes (+ applyRecurring)
+  vision.ts             # Action vision Claude (analyse de photo)
+  recap.ts              # Action récap mensuel IA (DeepSeek)
   auth.ts               # Convex Auth (provider Password)
   seed.ts               # Données de démonstration fictives (Janvier 2025)
 src/

@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RecurrentesRouteImport } from './routes/recurrentes'
 import { Route as EpargneRouteImport } from './routes/epargne'
 import { Route as AvoirRouteImport } from './routes/avoir'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MoisIndexRouteImport } from './routes/mois.index'
 import { Route as MoisYearMonthRouteImport } from './routes/mois.$year.$month'
 
+const RecurrentesRoute = RecurrentesRouteImport.update({
+  id: '/recurrentes',
+  path: '/recurrentes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EpargneRoute = EpargneRouteImport.update({
   id: '/epargne',
   path: '/epargne',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
+  '/recurrentes': typeof RecurrentesRoute
   '/mois/': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
+  '/recurrentes': typeof RecurrentesRoute
   '/mois': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
 }
@@ -60,27 +68,55 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
+  '/recurrentes': typeof RecurrentesRoute
   '/mois/': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/avoir' | '/epargne' | '/mois/' | '/mois/$year/$month'
+  fullPaths:
+    | '/'
+    | '/avoir'
+    | '/epargne'
+    | '/recurrentes'
+    | '/mois/'
+    | '/mois/$year/$month'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/avoir' | '/epargne' | '/mois' | '/mois/$year/$month'
-  id: '__root__' | '/' | '/avoir' | '/epargne' | '/mois/' | '/mois/$year/$month'
+  to:
+    | '/'
+    | '/avoir'
+    | '/epargne'
+    | '/recurrentes'
+    | '/mois'
+    | '/mois/$year/$month'
+  id:
+    | '__root__'
+    | '/'
+    | '/avoir'
+    | '/epargne'
+    | '/recurrentes'
+    | '/mois/'
+    | '/mois/$year/$month'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AvoirRoute: typeof AvoirRoute
   EpargneRoute: typeof EpargneRoute
+  RecurrentesRoute: typeof RecurrentesRoute
   MoisIndexRoute: typeof MoisIndexRoute
   MoisYearMonthRoute: typeof MoisYearMonthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/recurrentes': {
+      id: '/recurrentes'
+      path: '/recurrentes'
+      fullPath: '/recurrentes'
+      preLoaderRoute: typeof RecurrentesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/epargne': {
       id: '/epargne'
       path: '/epargne'
@@ -123,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AvoirRoute: AvoirRoute,
   EpargneRoute: EpargneRoute,
+  RecurrentesRoute: RecurrentesRoute,
   MoisIndexRoute: MoisIndexRoute,
   MoisYearMonthRoute: MoisYearMonthRoute,
 }

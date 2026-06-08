@@ -86,6 +86,23 @@ export default defineSchema({
   }).index('by_user', ['userId']),
 
   /**
+   * Lignes récurrentes : modèles de lignes (loyer, abonnements…) que l'utilisateur
+   * applique chaque mois en un clic. `amount` = montant prévu par défaut.
+   */
+  recurringLines: defineTable({
+    userId: v.id('users'),
+    section: v.union(
+      v.literal('income'),
+      v.literal('fixed'),
+      v.literal('variable'),
+      v.literal('credit'),
+      v.literal('saving'),
+    ),
+    label: v.string(),
+    amount: v.number(),
+  }).index('by_user', ['userId']),
+
+  /**
    * Objectifs d'épargne de l'utilisateur.
    * Exemple : { label: "Fonds d'urgence", target: 5000, current: 1200 }.
    *  - `target`  : montant visé

@@ -10,6 +10,8 @@ import {
   Info,
   Paperclip,
   Plus,
+  Repeat,
+  Sparkles,
   StickyNote,
   Trash2,
   Upload,
@@ -31,6 +33,7 @@ import ImportDialog from './ImportDialog'
 import PhotoImportDialog from './PhotoImportDialog'
 import EntryDetailDialog from './EntryDetailDialog'
 import AddEntryDialog from './AddEntryDialog'
+import MonthRecapDialog from './MonthRecapDialog'
 
 /**
  * Vue détaillée d'un mois : reproduit l'onglet mensuel de la feuille.
@@ -55,11 +58,13 @@ export default function MonthView({
   const data = useQuery(api.budget.getMonth, { year, month })
   const ensureMonth = useMutation(api.budget.ensureMonth)
   const duplicateMonth = useMutation(api.budget.duplicateMonth)
+  const applyRecurring = useMutation(api.recurring.applyRecurring)
   const navigate = useNavigate()
 
-  // État local : dialogues d'import (CSV / photo) + message ponctuel (toast).
+  // État local : dialogues d'import (CSV / photo / récap) + message ponctuel (toast).
   const [importOpen, setImportOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
+  const [recapOpen, setRecapOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
   // Navigation : passage d'année aux bornes (janvier ← déc année précédente,
@@ -86,6 +91,18 @@ export default function MonthView({
       setNotice(res.reason ?? 'Duplication impossible')
       setTimeout(() => setNotice(null), 4000)
     }
+  }
+
+  /** Applique les lignes récurrentes au mois courant (ajoute les manquantes). */
+  async function handleApplyRecurring() {
+    if (!data) return
+    const res = await applyRecurring({ monthId: data.month._id })
+    setNotice(
+      res.added > 0
+        ? `${res.added} ligne(s) récurrente(s) ajoutée(s)`
+        : 'Aucune nouvelle ligne récurrente (déjà présentes ou aucune définie)',
+    )
+    setTimeout(() => setNotice(null), 4000)
   }
 
   /** Génère le bilan PDF du mois courant. */
@@ -147,6 +164,12 @@ export default function MonthView({
                 <Copy className="h-4 w-4" /> Dupliquer vers {monthName(next.month)}
               </button>
             )}
+            <button className="app-btn-ghost" onClick={() => void handleApplyRecurring()}>
+              <Repeat className="h-4 w-4" /> Lignes récurrentes
+            </button>
+            <button className="app-btn-ghost" onClick={() => setRecapOpen(true)}>
+              <Sparkles className="h-4 w-4" /> Récap IA
+            </button>
             <button className="app-btn-ghost" onClick={handleExportPdf}>
               <FileDown className="h-4 w-4" /> Exporter PDF
             </button>
@@ -186,6 +209,16 @@ export default function MonthView({
               monthId={data.month._id}
               monthLabel={`${monthName(month)} ${year}`}
               onClose={() => setPhotoOpen(false)}
+            />
+          )}
+
+          {/* Modale de récap IA du mois */}
+          {recapOpen && (
+            <MonthRecapDialog
+              year={year}
+              month={month}
+              monthLabel={`${monthName(month)} ${year}`}
+              onClose={() => setRecapOpen(false)}
             />
           )}
         </>

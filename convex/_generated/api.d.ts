@@ -12,6 +12,8 @@ import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
 import type * as goals from "../goals.js";
 import type * as http from "../http.js";
+import type * as recap from "../recap.js";
+import type * as recurring from "../recurring.js";
 import type * as seed from "../seed.js";
 import type * as vision from "../vision.js";
 
@@ -26,6 +28,8 @@ declare const fullApi: ApiFromModules<{
   budget: typeof budget;
   goals: typeof goals;
   http: typeof http;
+  recap: typeof recap;
+  recurring: typeof recurring;
   seed: typeof seed;
   vision: typeof vision;
 }>;

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   CalendarDays,
   PiggyBank,
+  Repeat,
   Target,
   Wallet,
   LogOut,
@@ -42,6 +43,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
             <NavLink to="/epargne" icon={<Target className="h-4 w-4" />}>
               Épargne
+            </NavLink>
+            <NavLink to="/recurrentes" icon={<Repeat className="h-4 w-4" />}>
+              Récurrentes
             </NavLink>
           </nav>
 
