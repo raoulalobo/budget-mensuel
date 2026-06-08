@@ -5,6 +5,7 @@ import { Plus, Trash2, Target } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { formatEUR } from '../lib/budget'
+import { useBudgetRole } from '../lib/budgetRole'
 
 /**
  * Route /epargne : objectifs d'épargne.
@@ -19,6 +20,8 @@ function EpargnePage() {
   const goals = useQuery(api.goals.listGoals)
   const addGoal = useMutation(api.goals.addGoal)
   const [label, setLabel] = useState('')
+  // Droit d'écriture sur l'espace budget actif (faux pour un lecteur invité).
+  const { canEdit } = useBudgetRole()
 
   // Totaux globaux (épargné / visé).
   const totalCurrent = (goals ?? []).reduce((s, g) => s + g.current, 0)
@@ -73,18 +76,20 @@ function EpargnePage() {
         )}
       </div>
 
-      {/* Ajout d'objectif */}
-      <form onSubmit={handleAdd} className="app-card flex items-center gap-2 p-4">
-        <input
-          className="app-input flex-1"
-          placeholder="Nouvel objectif (ex. Vacances, Voiture, Fonds d'urgence)"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-        />
-        <button type="submit" className="app-btn-primary" disabled={!label.trim()}>
-          <Plus className="h-4 w-4" /> Ajouter
-        </button>
-      </form>
+      {/* Ajout d'objectif (écriture : masqué pour les lecteurs invités) */}
+      {canEdit && (
+        <form onSubmit={handleAdd} className="app-card flex items-center gap-2 p-4">
+          <input
+            className="app-input flex-1"
+            placeholder="Nouvel objectif (ex. Vacances, Voiture, Fonds d'urgence)"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+          <button type="submit" className="app-btn-primary" disabled={!label.trim()}>
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </form>
+      )}
     </div>
   )
 }

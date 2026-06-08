@@ -1,12 +1,14 @@
 import { v } from 'convex/values'
-import { getAuthUserId } from '@convex-dev/auth/server'
 import { mutation, query } from './_generated/server'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
+import { effectiveOwnerOrNull, requireWrite } from './sharing'
 
 /**
  * Lignes récurrentes : modèles de lignes (loyer, abonnements, salaire…) que
  * l'utilisateur peut appliquer à n'importe quel mois en un clic.
+ * Compatible BUDGET PARTAGÉ : `userId` ci-dessous = propriétaire effectif de
+ * l'espace actif (écriture bloquée pour les lecteurs via `requireWrite`).
  */
 
 const sectionValidator = v.union(
@@ -17,17 +19,16 @@ const sectionValidator = v.union(
   v.literal('saving'),
 )
 
+/** Propriétaire effectif pour une écriture (lève une erreur si lecteur). */
 async function requireUser(ctx: QueryCtx | MutationCtx): Promise<Id<'users'>> {
-  const userId = await getAuthUserId(ctx)
-  if (userId === null) throw new Error('Non authentifié')
-  return userId
+  return await requireWrite(ctx)
 }
 
 /** Liste les lignes récurrentes de l'utilisateur. */
 export const listRecurring = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return []
     return await ctx.db
       .query('recurringLines')

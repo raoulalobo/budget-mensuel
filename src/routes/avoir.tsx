@@ -14,6 +14,7 @@ import {
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { formatEUR, monthName } from '../lib/budget'
+import { useBudgetRole } from '../lib/budgetRole'
 
 /**
  * Route /avoir : patrimoine / placements (onglet "Avoir" de la feuille).
@@ -28,6 +29,8 @@ function AvoirPage() {
   const history = useQuery(api.budget.assetHistory)
   const addAsset = useMutation(api.budget.addAsset)
   const [label, setLabel] = useState('')
+  // Droit d'écriture sur l'espace budget actif (faux pour un lecteur invité).
+  const { canEdit } = useBudgetRole()
 
   const total = (assets ?? []).reduce((sum, a) => sum + a.amount, 0)
 
@@ -122,21 +125,23 @@ function AvoirPage() {
           </tbody>
         </table>
 
-        {/* Formulaire d'ajout */}
-        <form
-          onSubmit={handleAdd}
-          className="flex items-center gap-2 border-t border-border px-4 py-3"
-        >
-          <input
-            className="app-input flex-1"
-            placeholder="Ajouter un placement (ex. Livret A)"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-          />
-          <button type="submit" className="app-btn-primary" disabled={!label.trim()}>
-            <Plus className="h-4 w-4" /> Ajouter
-          </button>
-        </form>
+        {/* Formulaire d'ajout (écriture : masqué pour les lecteurs invités) */}
+        {canEdit && (
+          <form
+            onSubmit={handleAdd}
+            className="flex items-center gap-2 border-t border-border px-4 py-3"
+          >
+            <input
+              className="app-input flex-1"
+              placeholder="Ajouter un placement (ex. Livret A)"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+            <button type="submit" className="app-btn-primary" disabled={!label.trim()}>
+              <Plus className="h-4 w-4" /> Ajouter
+            </button>
+          </form>
+        )}
       </div>
     </div>
   )

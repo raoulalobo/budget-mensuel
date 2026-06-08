@@ -1,28 +1,28 @@
 import { v } from 'convex/values'
-import { getAuthUserId } from '@convex-dev/auth/server'
 import { mutation, query } from './_generated/server'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
+import { effectiveOwnerOrNull, requireWrite } from './sharing'
 
 /**
  * Fonctions backend des "Objectifs d'épargne".
  *
  * Un objectif = { label, target (montant visé), current (déjà épargné) }.
- * Comme partout, chaque fonction est limitée aux données de l'utilisateur connecté.
+ * Compatible BUDGET PARTAGÉ : chaque fonction cible le propriétaire effectif de
+ * l'espace actif (lecture via `effectiveOwnerOrNull`, écriture via `requireWrite`
+ * qui bloque les lecteurs). `userId` désigne ci-dessous cet « owner effectif ».
  */
 
-/** Récupère l'utilisateur connecté ou lève une erreur. */
+/** Propriétaire effectif pour une écriture (lève une erreur si lecteur). */
 async function requireUser(ctx: QueryCtx | MutationCtx): Promise<Id<'users'>> {
-  const userId = await getAuthUserId(ctx)
-  if (userId === null) throw new Error('Non authentifié')
-  return userId
+  return await requireWrite(ctx)
 }
 
 /** Liste les objectifs d'épargne de l'utilisateur, dans l'ordre. */
 export const listGoals = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return []
     const goals = await ctx.db
       .query('savingsGoals')

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RecurrentesRouteImport } from './routes/recurrentes'
+import { Route as PartageRouteImport } from './routes/partage'
 import { Route as EpargneRouteImport } from './routes/epargne'
 import { Route as AvoirRouteImport } from './routes/avoir'
 import { Route as AssistantRouteImport } from './routes/assistant'
@@ -20,6 +21,11 @@ import { Route as MoisYearMonthRouteImport } from './routes/mois.$year.$month'
 const RecurrentesRoute = RecurrentesRouteImport.update({
   id: '/recurrentes',
   path: '/recurrentes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartageRoute = PartageRouteImport.update({
+  id: '/partage',
+  path: '/partage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EpargneRoute = EpargneRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/assistant': typeof AssistantRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
+  '/partage': typeof PartageRoute
   '/recurrentes': typeof RecurrentesRoute
   '/mois/': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/assistant': typeof AssistantRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
+  '/partage': typeof PartageRoute
   '/recurrentes': typeof RecurrentesRoute
   '/mois': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/assistant': typeof AssistantRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
+  '/partage': typeof PartageRoute
   '/recurrentes': typeof RecurrentesRoute
   '/mois/': typeof MoisIndexRoute
   '/mois/$year/$month': typeof MoisYearMonthRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/assistant'
     | '/avoir'
     | '/epargne'
+    | '/partage'
     | '/recurrentes'
     | '/mois/'
     | '/mois/$year/$month'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/assistant'
     | '/avoir'
     | '/epargne'
+    | '/partage'
     | '/recurrentes'
     | '/mois'
     | '/mois/$year/$month'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/assistant'
     | '/avoir'
     | '/epargne'
+    | '/partage'
     | '/recurrentes'
     | '/mois/'
     | '/mois/$year/$month'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   AssistantRoute: typeof AssistantRoute
   AvoirRoute: typeof AvoirRoute
   EpargneRoute: typeof EpargneRoute
+  PartageRoute: typeof PartageRoute
   RecurrentesRoute: typeof RecurrentesRoute
   MoisIndexRoute: typeof MoisIndexRoute
   MoisYearMonthRoute: typeof MoisYearMonthRoute
@@ -128,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/recurrentes'
       fullPath: '/recurrentes'
       preLoaderRoute: typeof RecurrentesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partage': {
+      id: '/partage'
+      path: '/partage'
+      fullPath: '/partage'
+      preLoaderRoute: typeof PartageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/epargne': {
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssistantRoute: AssistantRoute,
   AvoirRoute: AvoirRoute,
   EpargneRoute: EpargneRoute,
+  PartageRoute: PartageRoute,
   RecurrentesRoute: RecurrentesRoute,
   MoisIndexRoute: MoisIndexRoute,
   MoisYearMonthRoute: MoisYearMonthRoute,

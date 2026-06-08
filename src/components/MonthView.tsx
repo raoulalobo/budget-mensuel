@@ -30,6 +30,7 @@ import {
   type Section,
 } from '../lib/budget'
 import { generateMonthPdf } from '../lib/pdf'
+import { useBudgetRole } from '../lib/budgetRole'
 import SummaryCards from './SummaryCards'
 import ImportDialog from './ImportDialog'
 import PhotoImportDialog from './PhotoImportDialog'
@@ -62,6 +63,8 @@ export default function MonthView({
   const duplicateMonth = useMutation(api.budget.duplicateMonth)
   const applyRecurring = useMutation(api.recurring.applyRecurring)
   const navigate = useNavigate()
+  // Droit d'écriture sur l'espace budget actif (faux pour un lecteur invité).
+  const { canEdit } = useBudgetRole()
 
   // État local : dialogues d'import (CSV / photo / récap) + message ponctuel (toast).
   const [importOpen, setImportOpen] = useState(false)
@@ -145,31 +148,43 @@ export default function MonthView({
           <p className="text-muted-foreground">
             Aucune donnée pour {monthName(month)} {year}.
           </p>
-          <button
-            className="app-btn-primary"
-            onClick={() => void ensureMonth({ year, month })}
-          >
-            <Plus className="h-4 w-4" /> Créer ce mois
-          </button>
+          {/* La création d'un mois est une écriture : interdite aux lecteurs. */}
+          {canEdit && (
+            <button
+              className="app-btn-primary"
+              onClick={() => void ensureMonth({ year, month })}
+            >
+              <Plus className="h-4 w-4" /> Créer ce mois
+            </button>
+          )}
         </div>
       ) : (
         <>
           {/* Barre d'actions : import CSV, duplication, export PDF */}
           <div className="flex flex-wrap items-center gap-2">
-            <button className="app-btn-ghost" onClick={() => setImportOpen(true)}>
-              <Upload className="h-4 w-4" /> Importer CSV
-            </button>
-            <button className="app-btn-ghost" onClick={() => setPhotoOpen(true)}>
-              <Camera className="h-4 w-4" /> Importer par photo
-            </button>
-            {next && (
-              <button className="app-btn-ghost" onClick={handleDuplicate}>
-                <Copy className="h-4 w-4" /> Dupliquer vers {monthName(next.month)}
-              </button>
+            {/* Actions d'ÉCRITURE : masquées pour un lecteur invité. */}
+            {canEdit && (
+              <>
+                <button className="app-btn-ghost" onClick={() => setImportOpen(true)}>
+                  <Upload className="h-4 w-4" /> Importer CSV
+                </button>
+                <button className="app-btn-ghost" onClick={() => setPhotoOpen(true)}>
+                  <Camera className="h-4 w-4" /> Importer par photo
+                </button>
+                {next && (
+                  <button className="app-btn-ghost" onClick={handleDuplicate}>
+                    <Copy className="h-4 w-4" /> Dupliquer vers {monthName(next.month)}
+                  </button>
+                )}
+                <button
+                  className="app-btn-ghost"
+                  onClick={() => void handleApplyRecurring()}
+                >
+                  <Repeat className="h-4 w-4" /> Lignes récurrentes
+                </button>
+              </>
             )}
-            <button className="app-btn-ghost" onClick={() => void handleApplyRecurring()}>
-              <Repeat className="h-4 w-4" /> Lignes récurrentes
-            </button>
+            {/* Actions de LECTURE : toujours disponibles. */}
             <button className="app-btn-ghost" onClick={() => setRecapOpen(true)}>
               <Sparkles className="h-4 w-4" /> Récap IA
             </button>
@@ -251,6 +266,7 @@ export default function MonthView({
                 key={section}
                 section={section}
                 monthId={data.month._id}
+                canEdit={canEdit}
                 entries={data.entries
                   .filter((e) => e.section === section)
                   .filter((e) => matchSearch(e, search))}
@@ -342,10 +358,12 @@ function SectionCard({
   section,
   monthId,
   entries,
+  canEdit,
 }: {
   section: Section
   monthId: Id<'months'>
   entries: Entry[]
+  canEdit: boolean
 }) {
   // Ligne dont le détail est ouvert (re-dérivée depuis `entries` pour rester à jour).
   const [selectedId, setSelectedId] = useState<Id<'entries'> | null>(null)
@@ -410,6 +428,7 @@ function SectionCard({
                   key={entry._id}
                   entry={entry}
                   isExpense={isExpense}
+                  canEdit={canEdit}
                   onOpenDetail={() => setSelectedId(entry._id)}
                 />
               ))
@@ -433,15 +452,17 @@ function SectionCard({
         </table>
       </div>
 
-      {/* Bouton d'ajout : ouvre la modale d'ajout complète */}
-      <div className="border-t border-border px-4 py-3">
-        <button
-          className="app-btn-ghost w-full justify-center border border-dashed border-border"
-          onClick={() => setAddOpen(true)}
-        >
-          <Plus className="h-4 w-4" /> Ajouter une ligne
-        </button>
-      </div>
+      {/* Bouton d'ajout : ouvre la modale d'ajout complète (écriture). */}
+      {canEdit && (
+        <div className="border-t border-border px-4 py-3">
+          <button
+            className="app-btn-ghost w-full justify-center border border-dashed border-border"
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus className="h-4 w-4" /> Ajouter une ligne
+          </button>
+        </div>
+      )}
 
       {/* Détail de la ligne sélectionnée */}
       {selected && (
@@ -467,10 +488,12 @@ function SectionCard({
 function EntryRow({
   entry,
   isExpense,
+  canEdit,
   onOpenDetail,
 }: {
   entry: Entry
   isExpense: boolean
+  canEdit: boolean
   onOpenDetail: () => void
 }) {
   const updateEntry = useMutation(api.budget.updateEntry)
@@ -488,8 +511,9 @@ function EntryRow({
     <tr className="border-t border-border/60 hover:bg-accent/40">
       <td className="px-4 py-1.5">
         <input
-          className="w-full bg-transparent px-1 py-1 outline-none focus:rounded focus:bg-background"
+          className="w-full bg-transparent px-1 py-1 outline-none focus:rounded focus:bg-background read-only:cursor-default"
           value={label}
+          readOnly={!canEdit}
           onChange={(e) => setLabel(e.target.value)}
           onBlur={() => {
             if (label !== entry.label) void updateEntry({ entryId: entry._id, label })
@@ -511,6 +535,7 @@ function EntryRow({
       <td className="px-2 py-1.5">
         <AmountInput
           value={budget}
+          readOnly={!canEdit}
           onChange={setBudget}
           onCommit={(n) => {
             if (n !== entry.budget) void updateEntry({ entryId: entry._id, budget: n })
@@ -520,6 +545,7 @@ function EntryRow({
       <td className="px-2 py-1.5">
         <AmountInput
           value={real}
+          readOnly={!canEdit}
           onChange={setReal}
           onCommit={(n) => {
             if (n !== entry.real) void updateEntry({ entryId: entry._id, real: n })
@@ -559,14 +585,16 @@ function EntryRow({
           >
             <Info className="h-4 w-4" />
           </button>
-          {/* Supprimer */}
-          <button
-            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            title="Supprimer la ligne"
-            onClick={() => void removeEntry({ entryId: entry._id })}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {/* Supprimer (écriture : masqué pour les lecteurs) */}
+          {canEdit && (
+            <button
+              className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              title="Supprimer la ligne"
+              onClick={() => void removeEntry({ entryId: entry._id })}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -578,18 +606,21 @@ function AmountInput({
   value,
   onChange,
   onCommit,
+  readOnly = false,
 }: {
   value: string
   onChange: (v: string) => void
   onCommit: (n: number) => void
+  readOnly?: boolean
 }) {
   return (
     <input
       type="number"
       step="0.01"
       inputMode="decimal"
-      className="w-full rounded bg-transparent px-1 py-1 text-right tabular-nums outline-none focus:bg-background"
+      className="w-full rounded bg-transparent px-1 py-1 text-right tabular-nums outline-none focus:bg-background read-only:cursor-default"
       value={value}
+      readOnly={readOnly}
       onChange={(e) => onChange(e.target.value)}
       onBlur={() => onCommit(Number(value) || 0)}
     />

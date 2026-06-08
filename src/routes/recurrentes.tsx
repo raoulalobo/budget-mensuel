@@ -5,6 +5,7 @@ import { Plus, Trash2, Repeat } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { SECTIONS, SECTION_LABELS, type Section } from '../lib/budget'
+import { useBudgetRole } from '../lib/budgetRole'
 
 /**
  * Route /recurrentes : gestion des lignes récurrentes (loyer, abonnements…).
@@ -18,6 +19,8 @@ export const Route = createFileRoute('/recurrentes')({
 function RecurringPage() {
   const items = useQuery(api.recurring.listRecurring)
   const addRecurring = useMutation(api.recurring.addRecurring)
+  // Droit d'écriture sur l'espace budget actif (faux pour un lecteur invité).
+  const { canEdit } = useBudgetRole()
 
   const [section, setSection] = useState<Section>('fixed')
   const [label, setLabel] = useState('')
@@ -44,7 +47,8 @@ function RecurringPage() {
         </div>
       </div>
 
-      {/* Formulaire d'ajout */}
+      {/* Formulaire d'ajout (écriture : masqué pour les lecteurs invités) */}
+      {canEdit && (
       <form onSubmit={handleAdd} className="app-card flex flex-wrap items-end gap-2 p-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Section</label>
@@ -84,6 +88,7 @@ function RecurringPage() {
           <Plus className="h-4 w-4" /> Ajouter
         </button>
       </form>
+      )}
 
       {/* Liste */}
       <div className="app-card overflow-hidden">
@@ -110,7 +115,9 @@ function RecurringPage() {
                 </td>
               </tr>
             ) : (
-              items.map((it) => <RecurringRow key={it._id} item={it} />)
+              items.map((it) => (
+                <RecurringRow key={it._id} item={it} canEdit={canEdit} />
+              ))
             )}
           </tbody>
         </table>
@@ -122,8 +129,10 @@ function RecurringPage() {
 /** Une ligne récurrente éditable (section / libellé / montant), commit au blur. */
 function RecurringRow({
   item,
+  canEdit,
 }: {
   item: { _id: Id<'recurringLines'>; section: Section; label: string; amount: number }
+  canEdit: boolean
 }) {
   const updateRecurring = useMutation(api.recurring.updateRecurring)
   const removeRecurring = useMutation(api.recurring.removeRecurring)
@@ -134,8 +143,9 @@ function RecurringRow({
     <tr className="border-t border-border/60 hover:bg-accent/40">
       <td className="px-2 py-1.5">
         <select
-          className="w-full rounded border border-input bg-background px-1.5 py-1 outline-none focus:ring-2 focus:ring-ring"
+          className="w-full rounded border border-input bg-background px-1.5 py-1 outline-none focus:ring-2 focus:ring-ring disabled:opacity-100"
           value={item.section}
+          disabled={!canEdit}
           onChange={(e) =>
             void updateRecurring({ id: item._id, section: e.target.value as Section })
           }
@@ -151,6 +161,7 @@ function RecurringRow({
         <input
           className="w-full bg-transparent px-1 py-1 outline-none focus:rounded focus:bg-background"
           value={label}
+          readOnly={!canEdit}
           onChange={(e) => setLabel(e.target.value)}
           onBlur={() => {
             if (label !== item.label) void updateRecurring({ id: item._id, label })
@@ -163,6 +174,7 @@ function RecurringRow({
           step="0.01"
           className="w-full rounded bg-transparent px-1 py-1 text-right tabular-nums outline-none focus:bg-background"
           value={amount}
+          readOnly={!canEdit}
           onChange={(e) => setAmount(e.target.value)}
           onBlur={() => {
             const n = Number(amount) || 0
@@ -171,13 +183,15 @@ function RecurringRow({
         />
       </td>
       <td className="px-2 py-1.5 text-center">
-        <button
-          className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          title="Supprimer"
-          onClick={() => void removeRecurring({ id: item._id })}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canEdit && (
+          <button
+            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            title="Supprimer"
+            onClick={() => void removeRecurring({ id: item._id })}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </td>
     </tr>
   )

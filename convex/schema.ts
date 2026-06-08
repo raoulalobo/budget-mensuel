@@ -132,4 +132,58 @@ export default defineSchema({
     current: v.number(),
     order: v.number(),
   }).index('by_user', ['userId']),
+
+  /**
+   * ─────────────────────── BUDGET PARTAGÉ ───────────────────────
+   *
+   * Principe (par délégation, sans migration des données existantes) :
+   *  - Chaque utilisateur possède son propre « espace budget », identifié par
+   *    SON userId : c'est le `ownerId`. Toutes les données (months, entries,
+   *    assets…) restent estampillées avec le userId du PROPRIÉTAIRE de l'espace.
+   *  - Un utilisateur peut être invité dans l'espace d'un autre (membre) avec un
+   *    rôle (éditeur = modifie, lecteur = consultation seule).
+   *  - À tout instant, un utilisateur « regarde » un espace (le sien par défaut,
+   *    ou un espace partagé) : c'est l'espace actif. Les requêtes de données
+   *    utilisent le `ownerId` de l'espace actif au lieu du userId connecté.
+   */
+
+  /**
+   * Appartenance d'un utilisateur à l'espace budget d'un propriétaire.
+   * Le propriétaire (ownerId) n'a PAS de ligne ici : il est implicitement
+   * « owner » de son propre espace. Une ligne = un invité accepté.
+   * Exemple : { ownerId: Alice, memberId: Bob, role: 'editor' }
+   *   → Bob peut modifier le budget d'Alice.
+   */
+  budgetMembers: defineTable({
+    ownerId: v.id('users'), // propriétaire de l'espace partagé
+    memberId: v.id('users'), // utilisateur invité ayant accès
+    role: v.union(v.literal('editor'), v.literal('viewer')),
+  })
+    .index('by_owner', ['ownerId']) // lister les membres d'un espace
+    .index('by_member', ['memberId']) // lister les espaces où je suis invité
+    .index('by_owner_member', ['ownerId', 'memberId']), // vérifier un accès précis
+
+  /**
+   * Invitation par CODE : le propriétaire génère un code à usage (ré)utilisable
+   * que l'invité saisit pour rejoindre l'espace avec le rôle prévu.
+   * Le code est supprimé une fois consommé (usage unique).
+   * Exemple : { ownerId: Alice, code: 'ABX7-K9P2', role: 'editor' }
+   */
+  budgetInvites: defineTable({
+    ownerId: v.id('users'),
+    code: v.string(),
+    role: v.union(v.literal('editor'), v.literal('viewer')),
+  })
+    .index('by_code', ['code']) // résoudre un code saisi
+    .index('by_owner', ['ownerId']), // lister/révoquer les invitations d'un espace
+
+  /**
+   * Espace budget actuellement sélectionné par un utilisateur.
+   * Absence de ligne (ou ownerId === userId) ⇒ l'utilisateur regarde SON espace.
+   * Exemple : { userId: Bob, ownerId: Alice } → Bob regarde le budget d'Alice.
+   */
+  activeBudget: defineTable({
+    userId: v.id('users'),
+    ownerId: v.id('users'),
+  }).index('by_user', ['userId']),
 })

@@ -1,16 +1,19 @@
 import { v } from 'convex/values'
-import { getAuthUserId } from '@convex-dev/auth/server'
 import { mutation, query } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
+import { effectiveOwnerOrNull, requireWrite } from './sharing'
 
 /**
  * Fonctions backend de l'application Budget.
  *
- * Toutes les fonctions sont "multi-utilisateurs" : elles récupèrent l'identité
- * via Convex Auth (`getAuthUserId`) et ne renvoient/modifient QUE les données
- * appartenant à l'utilisateur connecté. Une tentative d'accès à la donnée d'un
- * autre utilisateur lève une erreur.
+ * Toutes les fonctions sont "multi-utilisateurs" ET compatibles BUDGET PARTAGÉ :
+ * au lieu de l'utilisateur connecté, elles ciblent le PROPRIÉTAIRE EFFECTIF de
+ * l'espace budget regardé (cf. convex/sharing.ts) :
+ *   - lecture  → `effectiveOwnerOrNull` (l'espace actif, ou null si déconnecté)
+ *   - écriture → `requireWrite` (l'espace actif ; lève une erreur si lecteur)
+ * Dans tout ce fichier, la variable `userId` désigne donc cet « owner effectif »
+ * (= l'utilisateur connecté lorsqu'il regarde son propre budget).
  */
 
 // Validateur réutilisable pour la section d'une ligne de budget.
@@ -22,13 +25,13 @@ const sectionValidator = v.union(
   v.literal('saving'),
 )
 
-/** Récupère l'id de l'utilisateur connecté ou lève une erreur d'authentification. */
+/**
+ * Récupère le propriétaire effectif pour une ÉCRITURE : l'espace budget actif.
+ * Lève une erreur si non authentifié ou si l'utilisateur est en lecture seule.
+ * (Conserve le nom `requireUser` : tous les call sites d'écriture l'utilisent.)
+ */
 async function requireUser(ctx: QueryCtx | MutationCtx): Promise<Id<'users'>> {
-  const userId = await getAuthUserId(ctx)
-  if (userId === null) {
-    throw new Error('Non authentifié')
-  }
-  return userId
+  return await requireWrite(ctx)
 }
 
 /**
@@ -97,7 +100,7 @@ async function getOwnedEntry(
 export const listMonths = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return []
 
     const months = await ctx.db
@@ -129,7 +132,7 @@ export const listMonths = query({
 export const getMonth = query({
   args: { year: v.number(), month: v.number() },
   handler: async (ctx, { year, month }) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return null
 
     const monthDoc = await ctx.db
@@ -158,7 +161,7 @@ export const getMonth = query({
 export const assistantSnapshot = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return null
 
     const months = await ctx.db
@@ -394,7 +397,7 @@ export const createReceipt = mutation({
 export const entryPhotoUrl = query({
   args: { entryId: v.id('entries') },
   handler: async (ctx, { entryId }) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return null
     const entry = await ctx.db.get(entryId)
     if (!entry || entry.userId !== userId || !entry.receiptId) return null
@@ -550,7 +553,7 @@ export const duplicateMonth = mutation({
 export const listAssets = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return []
     const assets = await ctx.db
       .query('assets')
@@ -588,7 +591,7 @@ async function snapshotPatrimoine(ctx: MutationCtx, userId: Id<'users'>) {
 export const assetHistory = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return []
     const hist = await ctx.db
       .query('assetHistory')
@@ -659,7 +662,7 @@ export const removeAsset = mutation({
 export const yearExpenseBreakdown = query({
   args: { year: v.number() },
   handler: async (ctx, { year }) => {
-    const userId = await getAuthUserId(ctx)
+    const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return []
     const months = await ctx.db
       .query('months')

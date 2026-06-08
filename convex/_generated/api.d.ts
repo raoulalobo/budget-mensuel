@@ -16,6 +16,7 @@ import type * as http from "../http.js";
 import type * as recap from "../recap.js";
 import type * as recurring from "../recurring.js";
 import type * as seed from "../seed.js";
+import type * as sharing from "../sharing.js";
 import type * as vision from "../vision.js";
 
 import type {
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   recap: typeof recap;
   recurring: typeof recurring;
   seed: typeof seed;
+  sharing: typeof sharing;
   vision: typeof vision;
 }>;
 
