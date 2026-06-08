@@ -16,7 +16,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Download, FileDown, Sparkles } from 'lucide-react'
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileDown,
+  Sparkles,
+} from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import {
   EXPENSE_SECTIONS,
@@ -27,6 +34,7 @@ import {
 } from '../lib/budget'
 import { generateYearPdf } from '../lib/pdf'
 import YearSelector from '../components/YearSelector'
+import SummaryCards from '../components/SummaryCards'
 
 /**
  * Route "/" : tableau de bord annuel.
@@ -48,6 +56,8 @@ function Dashboard() {
   const assets = useQuery(api.budget.listAssets)
   // Année sélectionnée (hook appelé inconditionnellement, avant tout return).
   const [picked, setPicked] = useState<number | null>(null)
+  // Mois sélectionné pour le récap mensuel (null = dernier mois renseigné).
+  const [pickedMonth, setPickedMonth] = useState<number | null>(null)
 
   // Tant que les données chargent.
   if (months === undefined || assets === undefined) {
@@ -89,6 +99,11 @@ function Dashboard() {
     .filter((m) => m.summary.incomeReal !== 0 || m.summary.expenseReal !== 0)
     .sort((a, b) => b.month - a.month)[0]
 
+  // Mois affiché dans le récap mensuel : choix explicite, sinon dernier mois
+  // renseigné, sinon le mois en cours.
+  const recapMonth =
+    pickedMonth ?? lastFilled?.month ?? new Date().getMonth() + 1
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -99,8 +114,15 @@ function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Sélecteur d'année */}
-          <YearSelector year={year} onChange={setPicked} />
+          {/* Sélecteur d'année : on réinitialise aussi le mois du récap mensuel
+              pour repartir sur le dernier mois renseigné de la nouvelle année. */}
+          <YearSelector
+            year={year}
+            onChange={(y) => {
+              setPicked(y)
+              setPickedMonth(null)
+            }}
+          />
           {/* Export du bilan annuel en PDF */}
           <button
             className="app-btn-ghost"
@@ -182,7 +204,137 @@ function Dashboard() {
         {lastFilled && <ExpenseBreakdown year={year} month={lastFilled.month} />}
         <YearExpenseBreakdown year={year} />
       </div>
+
+      {/* ── Récap mensuel (sous le tableau de bord annuel) ─────────────────── */}
+      <MonthlyDashboard
+        year={year}
+        month={recapMonth}
+        onPrev={() => setPickedMonth(Math.max(1, recapMonth - 1))}
+        onNext={() => setPickedMonth(Math.min(12, recapMonth + 1))}
+      />
     </div>
+  )
+}
+
+/**
+ * Récap d'UN mois, affiché sous le tableau de bord annuel.
+ *
+ * Sélecteur de mois (◀/▶) + 3 cartes synthétiques (Revenus/Dépenses/Net), une
+ * prévision (reste à dépenser + net projeté), une alerte de dépassement, et
+ * l'anneau de répartition des dépenses du mois. Lecture seule (aucune écriture).
+ *
+ * Réutilise `SummaryCards` et `ExpenseBreakdown` ; la requête `getMonth` est
+ * partagée (dédupliquée) avec l'anneau, donc sans surcoût réseau.
+ */
+function MonthlyDashboard({
+  year,
+  month,
+  onPrev,
+  onNext,
+}: {
+  year: number
+  month: number
+  onPrev: () => void
+  onNext: () => void
+}) {
+  const data = useQuery(api.budget.getMonth, { year, month })
+
+  // Lignes de dépense dont le réel dépasse le prévu (pour l'alerte).
+  const overspent =
+    data?.entries.filter(
+      (e) => EXPENSE_SECTIONS.includes(e.section) && e.real > e.budget,
+    ) ?? []
+  const overTotal = overspent.reduce((s, e) => s + (e.real - e.budget), 0)
+
+  return (
+    <section className="flex flex-col gap-4">
+      {/* En-tête : titre + sélecteur de mois + lien vers le détail */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            className="app-btn-ghost px-2 disabled:opacity-30"
+            onClick={onPrev}
+            disabled={month <= 1}
+            aria-label="Mois précédent"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <h2 className="text-lg font-bold">
+            Récap mensuel — {monthName(month)} {year}
+          </h2>
+          <button
+            className="app-btn-ghost px-2 disabled:opacity-30"
+            onClick={onNext}
+            disabled={month >= 12}
+            aria-label="Mois suivant"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <Link
+          to="/mois/$year/$month"
+          params={{ year: String(year), month: String(month) }}
+          className="app-btn-ghost"
+        >
+          Voir le détail
+        </Link>
+      </div>
+
+      {data === undefined ? (
+        <p className="text-muted-foreground">Chargement…</p>
+      ) : data === null ? (
+        <div className="app-card p-6 text-center text-muted-foreground">
+          Aucune donnée pour {monthName(month)} {year}.
+        </div>
+      ) : (
+        <>
+          {/* 3 cartes synthétiques du mois */}
+          <SummaryCards summary={data.summary} />
+
+          {/* Alerte de dépassement (masquée si aucun poste concerné) */}
+          {overspent.length > 0 && (
+            <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                <strong>
+                  {overspent.length} poste{overspent.length > 1 ? 's' : ''} en
+                  dépassement
+                </strong>{' '}
+                — total dépassé :{' '}
+                <strong className="tabular-nums">+{formatEUR(overTotal)}</strong>
+              </span>
+            </div>
+          )}
+
+          {/* Prévision : reste à dépenser + net projeté si le budget est tenu */}
+          <div className="app-card flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-3 text-sm">
+            <span className="text-muted-foreground">Prévision du mois</span>
+            <span>
+              Reste à dépenser :{' '}
+              <strong className="tabular-nums">
+                {formatEUR(
+                  Math.max(0, data.summary.expenseBudget - data.summary.expenseReal),
+                )}
+              </strong>
+            </span>
+            <span>
+              Net projeté (budget tenu) :{' '}
+              <strong
+                className="tabular-nums"
+                style={{ color: data.summary.netBudget >= 0 ? '#16a34a' : '#dc2626' }}
+              >
+                {formatEUR(data.summary.netBudget)}
+              </strong>
+            </span>
+          </div>
+
+          {/* Anneau de répartition des dépenses du mois (composant réutilisé) */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ExpenseBreakdown year={year} month={month} />
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 
