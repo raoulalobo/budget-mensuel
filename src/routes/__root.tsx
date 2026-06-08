@@ -37,6 +37,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="fr">
       <head>
         <HeadContent />
+        {/*
+          Application du thème AVANT l'hydratation React : évite le flash de
+          thème clair (FOUC) et thème aussi la page de connexion. Lit le choix
+          sauvegardé ('theme' dans localStorage), sinon la préférence système.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
       </head>
       <body>
         <ConvexProvider>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import {
+  AlertTriangle,
   Camera,
   ChevronLeft,
   ChevronRight,
@@ -183,6 +184,32 @@ export default function MonthView({
           </div>
 
           <SummaryCards summary={data.summary} />
+
+          {/*
+            Alertes de dépassement : on repère les lignes de DÉPENSE dont le réel
+            dépasse le prévu, puis on additionne le surplus total. Une bannière
+            ambre résume le nombre de postes concernés et le dépassement cumulé.
+          */}
+          {(() => {
+            const overspent = data.entries.filter(
+              (e) => EXPENSE_SECTIONS.includes(e.section) && e.real > e.budget,
+            )
+            if (overspent.length === 0) return null
+            const total = overspent.reduce((s, e) => s + (e.real - e.budget), 0)
+            return (
+              <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong>
+                    {overspent.length} poste{overspent.length > 1 ? 's' : ''} en
+                    dépassement
+                  </strong>{' '}
+                  — total dépassé :{' '}
+                  <strong className="tabular-nums">+{formatEUR(total)}</strong>
+                </span>
+              </div>
+            )
+          })()}
 
           {/* Prévision : reste à dépenser + net projeté si le budget est tenu */}
           <div className="app-card flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-3 text-sm">
@@ -454,6 +481,9 @@ function EntryRow({
   const [budget, setBudget] = useState(String(entry.budget))
   const [real, setReal] = useState(String(entry.real))
 
+  // Dépassement : dépense dont le réel excède le prévu (surligne la ligne).
+  const overspent = isExpense && entry.real > entry.budget
+
   return (
     <tr className="border-t border-border/60 hover:bg-accent/40">
       <td className="px-4 py-1.5">
@@ -501,6 +531,13 @@ function EntryRow({
       </td>
       <td className="px-2 py-1.5">
         <div className="flex items-center justify-end gap-1">
+          {/* Indicateur : dépense en dépassement (réel > prévu) */}
+          {overspent && (
+            <AlertTriangle
+              className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400"
+              aria-label={`Dépassement de ${formatEUR(entry.real - entry.budget)}`}
+            />
+          )}
           {/* Indicateurs : photo jointe / note présente */}
           {entry.receiptId && (
             <Paperclip

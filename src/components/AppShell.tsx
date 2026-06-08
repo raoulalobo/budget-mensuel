@@ -9,7 +9,10 @@ import {
   Target,
   Wallet,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react'
+import { useDarkMode } from '../lib/theme'
 
 /**
  * Habillage (layout) de l'application pour les pages authentifiées :
@@ -18,6 +21,7 @@ import {
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuthActions()
+  const { dark, toggle } = useDarkMode()
 
   return (
     <div className="min-h-screen">
@@ -53,7 +57,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           </nav>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggle}
+              className="app-btn-ghost px-2"
+              title={dark ? 'Passer en clair' : 'Passer en sombre'}
+              aria-label="Basculer le thème"
+            >
+              {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
             <button
               type="button"
               onClick={() => void signOut()}
