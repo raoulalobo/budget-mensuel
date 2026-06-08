@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useAction, useMutation, useQuery } from 'convex/react'
+import { useAuthActions } from '@convex-dev/auth/react'
 import {
   User,
   ImagePlus,
@@ -9,6 +10,8 @@ import {
   Loader2,
   KeyRound,
   Mail,
+  AlertTriangle,
+  X,
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -49,6 +52,7 @@ function ProfilePage() {
           <AvatarCard avatarUrl={me.avatarUrl} name={me.name} email={me.email} />
           <IdentityCard name={me.name} email={me.email} />
           <PasswordCard />
+          <DangerZoneCard />
         </>
       )}
     </div>
@@ -295,6 +299,118 @@ function PasswordCard() {
         )}
       </div>
     </form>
+  )
+}
+
+/**
+ * Carte « Zone de danger » : suppression définitive du compte et des données.
+ * Ouvre une modale de confirmation où l'utilisateur doit taper « SUPPRIMER ».
+ */
+function DangerZoneCard() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="app-card flex flex-col gap-3 border-destructive/40 p-4">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-destructive" />
+        <h2 className="font-semibold text-destructive">Zone de danger</h2>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Supprimer votre compte efface définitivement toutes vos données (mois,
+        avoir, épargne, lignes récurrentes, partages, photos). Cette action est
+        irréversible.
+      </p>
+      <div>
+        <button className="app-btn-danger" onClick={() => setOpen(true)}>
+          <Trash2 className="h-4 w-4" /> Supprimer mon compte
+        </button>
+      </div>
+
+      {open && <DeleteAccountDialog onClose={() => setOpen(false)} />}
+    </div>
+  )
+}
+
+/** Modale de confirmation de suppression (saisie du mot « SUPPRIMER »). */
+function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
+  const deleteAccount = useMutation(api.users.deleteAccount)
+  const { signOut } = useAuthActions()
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const ready = confirm.trim().toUpperCase() === 'SUPPRIMER'
+
+  async function handleDelete() {
+    if (!ready) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteAccount({})
+      // Compte supprimé : on nettoie l'état client (retour à l'écran de connexion).
+      await signOut()
+    } catch (err) {
+      setError(cleanConvexError(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="app-card w-full max-w-md p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <h2 className="font-semibold">Supprimer mon compte</h2>
+          </div>
+          <button className="app-btn-ghost px-2" onClick={onClose} title="Fermer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Toutes vos données seront <strong>définitivement supprimées</strong> et
+          vous ne pourrez plus vous reconnecter. Cette action est irréversible.
+        </p>
+
+        <label className="mt-4 block text-sm">
+          Tapez <strong className="font-mono">SUPPRIMER</strong> pour confirmer :
+          <input
+            className="app-input mt-1 font-mono uppercase tracking-widest"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="SUPPRIMER"
+            autoFocus
+          />
+        </label>
+
+        {error && (
+          <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button className="app-btn-ghost" onClick={onClose} disabled={busy}>
+            Annuler
+          </button>
+          <button
+            className="app-btn-danger"
+            onClick={() => void handleDelete()}
+            disabled={!ready || busy}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Supprimer définitivement
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

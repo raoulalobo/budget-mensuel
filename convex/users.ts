@@ -148,3 +148,140 @@ export const changePassword = action({
     return { ok: true }
   },
 })
+
+/**
+ * SUPPRESSION DÉFINITIVE du compte et de TOUTES les données de l'utilisateur.
+ *
+ * Tout est effacé dans une seule mutation (transaction atomique) : données de
+ * budget + fichiers stockés, données de partage, puis le compte d'auth lui-même
+ * (comptes/sessions/refresh tokens + doc `users`) afin d'empêcher toute
+ * reconnexion. Action IRRÉVERSIBLE (la confirmation se fait côté UI).
+ *
+ * Important pour le partage : on ne supprime QUE les liens de cet utilisateur ;
+ * les budgets des autres propriétaires restent intacts. Les autres utilisateurs
+ * qui regardaient l'espace de U sont simplement remis sur LEUR propre espace.
+ */
+export const deleteAccount = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (userId === null) throw new Error('Non authentifié')
+
+    // ── 1. Données de budget ────────────────────────────────────────────────
+    // Mois + leurs lignes (les entries n'ont pas d'index par user : on passe
+    // par leurs mois, qui couvrent l'intégralité des lignes de l'utilisateur).
+    const months = await ctx.db
+      .query('months')
+      .withIndex('by_user_year_month', (q) => q.eq('userId', userId))
+      .collect()
+    for (const m of months) {
+      const entries = await ctx.db
+        .query('entries')
+        .withIndex('by_month', (q) => q.eq('monthId', m._id))
+        .collect()
+      for (const e of entries) await ctx.db.delete(e._id)
+      await ctx.db.delete(m._id)
+    }
+
+    // Reçus : suppression du fichier stocké puis du document.
+    const receipts = await ctx.db
+      .query('receipts')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+    for (const r of receipts) {
+      try {
+        await ctx.storage.delete(r.storageId)
+      } catch {
+        /* fichier déjà absent : on ignore */
+      }
+      await ctx.db.delete(r._id)
+    }
+
+    // Avoir, historique, lignes récurrentes, objectifs d'épargne (index by_user).
+    for (const table of [
+      'assets',
+      'assetHistory',
+      'recurringLines',
+      'savingsGoals',
+    ] as const) {
+      const rows = await ctx.db
+        .query(table)
+        .withIndex('by_user', (q) => q.eq('userId', userId))
+        .collect()
+      for (const row of rows) await ctx.db.delete(row._id)
+    }
+
+    // Profil (avatar) : suppression du fichier puis du document.
+    const profiles = await ctx.db
+      .query('userProfiles')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+    for (const p of profiles) {
+      if (p.avatarId) {
+        try {
+          await ctx.storage.delete(p.avatarId)
+        } catch {
+          /* ignore */
+        }
+      }
+      await ctx.db.delete(p._id)
+    }
+
+    // ── 2. Partage ──────────────────────────────────────────────────────────
+    // Membres : U en tant que propriétaire (ses invités) ET en tant qu'invité.
+    const asOwner = await ctx.db
+      .query('budgetMembers')
+      .withIndex('by_owner', (q) => q.eq('ownerId', userId))
+      .collect()
+    for (const m of asOwner) await ctx.db.delete(m._id)
+    const asMember = await ctx.db
+      .query('budgetMembers')
+      .withIndex('by_member', (q) => q.eq('memberId', userId))
+      .collect()
+    for (const m of asMember) await ctx.db.delete(m._id)
+
+    // Invitations émises par U.
+    const invites = await ctx.db
+      .query('budgetInvites')
+      .withIndex('by_owner', (q) => q.eq('ownerId', userId))
+      .collect()
+    for (const i of invites) await ctx.db.delete(i._id)
+
+    // Espaces actifs : on supprime celui de U, et on remet les AUTRES utilisateurs
+    // qui regardaient l'espace de U sur leur propre espace (table minuscule : scan
+    // complet, pas d'index par ownerId).
+    const actives = await ctx.db.query('activeBudget').collect()
+    for (const a of actives) {
+      if (a.userId === userId) {
+        await ctx.db.delete(a._id)
+      } else if (a.ownerId === userId) {
+        await ctx.db.patch(a._id, { ownerId: a.userId })
+      }
+    }
+
+    // ── 3. Compte d'authentification (empêche la reconnexion) ────────────────
+    const accounts = await ctx.db
+      .query('authAccounts')
+      .withIndex('userIdAndProvider', (q) => q.eq('userId', userId))
+      .collect()
+    for (const acc of accounts) await ctx.db.delete(acc._id)
+
+    const sessions = await ctx.db
+      .query('authSessions')
+      .withIndex('userId', (q) => q.eq('userId', userId))
+      .collect()
+    for (const s of sessions) {
+      const tokens = await ctx.db
+        .query('authRefreshTokens')
+        .withIndex('sessionId', (q) => q.eq('sessionId', s._id))
+        .collect()
+      for (const t of tokens) await ctx.db.delete(t._id)
+      await ctx.db.delete(s._id)
+    }
+
+    // Enfin, le document utilisateur lui-même.
+    await ctx.db.delete(userId)
+
+    return { ok: true }
+  },
+})
