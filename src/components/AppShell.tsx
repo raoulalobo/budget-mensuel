@@ -5,6 +5,7 @@ import {
   CalendarDays,
   PiggyBank,
   Repeat,
+  Sparkles,
   Target,
   Wallet,
   LogOut,
@@ -46,6 +47,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
             <NavLink to="/recurrentes" icon={<Repeat className="h-4 w-4" />}>
               Récurrentes
+            </NavLink>
+            <NavLink to="/assistant" icon={<Sparkles className="h-4 w-4" />}>
+              Assistant
             </NavLink>
           </nav>
 

@@ -56,6 +56,8 @@ export default defineSchema({
     receiptId: v.optional(v.id('receipts')),
     // Note libre optionnelle (saisie au clavier ou dictée vocale).
     note: v.optional(v.string()),
+    // Étiquettes libres pour la recherche / le filtrage.
+    tags: v.optional(v.array(v.string())),
   })
     .index('by_month', ['monthId'])
     .index('by_month_section', ['monthId', 'section'])
@@ -73,6 +75,20 @@ export default defineSchema({
     amount: v.number(),
     order: v.number(),
   }).index('by_user', ['userId']),
+
+  /**
+   * Historique du patrimoine : un point par (utilisateur, année, mois) = total de
+   * l'« Avoir » à ce moment. Mis à jour automatiquement à chaque changement de
+   * l'Avoir, pour tracer la courbe d'évolution.
+   */
+  assetHistory: defineTable({
+    userId: v.id('users'),
+    year: v.number(),
+    month: v.number(),
+    total: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_year_month', ['userId', 'year', 'month']),
 
   /**
    * Reçu / justificatif : un fichier image stocké UNE fois (file storage Convex),

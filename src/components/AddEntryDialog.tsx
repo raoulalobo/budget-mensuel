@@ -47,6 +47,7 @@ export default function AddEntryDialog({
   const [budget, setBudget] = useState('')
   const [real, setReal] = useState('')
   const [note, setNote] = useState('')
+  const [tags, setTags] = useState('')
   // Photo choisie, gardée localement (uploadée seulement à la validation).
   const [image, setImage] = useState<{
     dataUrl: string
@@ -115,6 +116,10 @@ export default function AddEntryDialog({
         )
         receiptId = await createReceipt({ storageId: storageId as Id<'_storage'> })
       }
+      const tagList = tags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
       await addEntry({
         monthId,
         section,
@@ -123,6 +128,7 @@ export default function AddEntryDialog({
         real: Number(real) || 0,
         note: note.trim() || undefined,
         receiptId,
+        tags: tagList.length > 0 ? tagList : undefined,
       })
       onClose()
     } finally {
@@ -197,6 +203,17 @@ export default function AddEntryDialog({
                 onChange={(e) => setReal(e.target.value)}
               />
             </div>
+          </div>
+
+          {/* Tags (séparés par des virgules) */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Tags</label>
+            <input
+              className="app-input"
+              placeholder="Ex. vacances, pro, urgent (séparés par des virgules)"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+            />
           </div>
 
           {/* Photo justificative */}

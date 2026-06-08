@@ -32,6 +32,7 @@ export interface DetailEntry {
   real: number
   note?: string
   receiptId?: Id<'receipts'>
+  tags?: string[]
 }
 
 /**
@@ -58,6 +59,7 @@ export default function EntryDetailDialog({
   const photoUrl = useQuery(api.budget.entryPhotoUrl, { entryId: entry._id })
 
   const [note, setNote] = useState(entry.note ?? '')
+  const [tags, setTags] = useState((entry.tags ?? []).join(', '))
   const [savingNote, setSavingNote] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -83,6 +85,18 @@ export default function EntryDetailDialog({
       await updateEntry({ entryId: entry._id, note })
     } finally {
       setSavingNote(false)
+    }
+  }
+
+  // Tags : commit au blur si la liste a changé.
+  function handleSaveTags() {
+    const arr = tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    const current = entry.tags ?? []
+    if (arr.join('|') !== current.join('|')) {
+      void updateEntry({ entryId: entry._id, tags: arr })
     }
   }
 
@@ -323,6 +337,18 @@ export default function EntryDetailDialog({
             {speech.listening && (
               <p className="mt-1 text-xs text-destructive">🎙️ Écoute en cours…</p>
             )}
+          </div>
+
+          {/* Tags (séparés par des virgules) */}
+          <div className="rounded-md border border-border p-3">
+            <span className="mb-2 block text-sm font-medium">Tags</span>
+            <input
+              className="app-input"
+              placeholder="Ex. vacances, pro, urgent"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              onBlur={handleSaveTags}
+            />
           </div>
         </div>
 

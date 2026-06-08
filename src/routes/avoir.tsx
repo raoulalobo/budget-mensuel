@@ -2,9 +2,18 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { Plus, Trash2, PiggyBank } from 'lucide-react'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { formatEUR } from '../lib/budget'
+import { formatEUR, monthName } from '../lib/budget'
 
 /**
  * Route /avoir : patrimoine / placements (onglet "Avoir" de la feuille).
@@ -16,10 +25,17 @@ export const Route = createFileRoute('/avoir')({
 
 function AvoirPage() {
   const assets = useQuery(api.budget.listAssets)
+  const history = useQuery(api.budget.assetHistory)
   const addAsset = useMutation(api.budget.addAsset)
   const [label, setLabel] = useState('')
 
   const total = (assets ?? []).reduce((sum, a) => sum + a.amount, 0)
+
+  // Points de la courbe d'évolution du patrimoine.
+  const histData = (history ?? []).map((h) => ({
+    nom: `${monthName(h.month).slice(0, 3)} ${String(h.year).slice(2)}`,
+    Patrimoine: Math.round(h.total * 100) / 100,
+  }))
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -49,6 +65,34 @@ function AvoirPage() {
           </div>
         </div>
       </div>
+
+      {/* Courbe d'évolution du patrimoine (un point par mois) */}
+      {histData.length >= 2 && (
+        <div className="app-card p-5">
+          <h2 className="mb-4 font-semibold">Évolution du patrimoine</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={histData} margin={{ left: -10, right: 8, top: 8 }}>
+              <defs>
+                <linearGradient id="patri" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="nom" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(v: number) => formatEUR(v)} />
+              <Area
+                type="monotone"
+                dataKey="Patrimoine"
+                stroke="#7c3aed"
+                strokeWidth={2.5}
+                fill="url(#patri)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <div className="app-card overflow-hidden">
         <table className="w-full text-sm">

@@ -151,6 +151,74 @@ export const getMonth = query({
 })
 
 /**
+ * Instantané complet des données de l'utilisateur, destiné à l'assistant IA :
+ * tous les mois (avec lignes + résumé), le patrimoine, les objectifs d'épargne
+ * et les lignes récurrentes. Renvoie `null` si non authentifié.
+ */
+export const assistantSnapshot = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (userId === null) return null
+
+    const months = await ctx.db
+      .query('months')
+      .withIndex('by_user_year_month', (q) => q.eq('userId', userId))
+      .collect()
+    months.sort((a, b) => a.year - b.year || a.month - b.month)
+
+    const monthData = []
+    for (const m of months) {
+      const entries = await ctx.db
+        .query('entries')
+        .withIndex('by_month', (q) => q.eq('monthId', m._id))
+        .collect()
+      // On n'inclut que les mois contenant au moins une ligne.
+      if (entries.length === 0) continue
+      monthData.push({
+        year: m.year,
+        month: m.month,
+        summary: summarize(entries),
+        entries: entries.map((e) => ({
+          section: e.section,
+          label: e.label,
+          budget: e.budget,
+          real: e.real,
+        })),
+      })
+    }
+
+    const assets = await ctx.db
+      .query('assets')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+    const goals = await ctx.db
+      .query('savingsGoals')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+    const recurring = await ctx.db
+      .query('recurringLines')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+
+    return {
+      months: monthData,
+      assets: assets.map((a) => ({ label: a.label, amount: a.amount })),
+      goals: goals.map((g) => ({
+        label: g.label,
+        target: g.target,
+        current: g.current,
+      })),
+      recurring: recurring.map((r) => ({
+        section: r.section,
+        label: r.label,
+        amount: r.amount,
+      })),
+    }
+  },
+})
+
+/**
  * Crée le mois (année, numéro) s'il n'existe pas encore et renvoie son id.
  * Idempotent : appelé avant d'ajouter une ligne dans un mois "vide".
  */
@@ -186,6 +254,7 @@ export const addEntry = mutation({
     real: v.optional(v.number()),
     note: v.optional(v.string()),
     receiptId: v.optional(v.id('receipts')),
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx)
@@ -211,6 +280,7 @@ export const addEntry = mutation({
       order: nextOrder,
       note: args.note,
       receiptId: args.receiptId,
+      tags: args.tags,
     })
   },
 })
@@ -251,6 +321,7 @@ export const updateEntry = mutation({
     real: v.optional(v.number()),
     note: v.optional(v.string()),
     receiptId: v.optional(v.id('receipts')),
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { entryId, ...patch }) => {
     const userId = await requireUser(ctx)
@@ -490,6 +561,44 @@ export const listAssets = query({
   },
 })
 
+/**
+ * Enregistre (ou met à jour) le total du patrimoine pour le mois CIVIL en cours,
+ * afin de tracer la courbe d'évolution. Appelé après chaque changement de l'Avoir.
+ */
+async function snapshotPatrimoine(ctx: MutationCtx, userId: Id<'users'>) {
+  const assets = await ctx.db
+    .query('assets')
+    .withIndex('by_user', (q) => q.eq('userId', userId))
+    .collect()
+  const total = assets.reduce((s, a) => s + a.amount, 0)
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const existing = await ctx.db
+    .query('assetHistory')
+    .withIndex('by_user_year_month', (q) =>
+      q.eq('userId', userId).eq('year', year).eq('month', month),
+    )
+    .unique()
+  if (existing) await ctx.db.patch(existing._id, { total })
+  else await ctx.db.insert('assetHistory', { userId, year, month, total })
+}
+
+/** Historique du patrimoine (un point par mois), trié chronologiquement. */
+export const assetHistory = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (userId === null) return []
+    const hist = await ctx.db
+      .query('assetHistory')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+    hist.sort((a, b) => a.year - b.year || a.month - b.month)
+    return hist.map((h) => ({ year: h.year, month: h.month, total: h.total }))
+  },
+})
+
 /** Ajoute un placement. */
 export const addAsset = mutation({
   args: { label: v.string(), amount: v.optional(v.number()) },
@@ -501,12 +610,14 @@ export const addAsset = mutation({
       .collect()
     const nextOrder =
       existing.reduce((max, a) => Math.max(max, a.order), -1) + 1
-    return await ctx.db.insert('assets', {
+    const id = await ctx.db.insert('assets', {
       userId,
       label,
       amount: amount ?? 0,
       order: nextOrder,
     })
+    await snapshotPatrimoine(ctx, userId)
+    return id
   },
 })
 
@@ -525,6 +636,7 @@ export const updateAsset = mutation({
       Object.entries(patch).filter(([, v]) => v !== undefined),
     )
     await ctx.db.patch(assetId, fields)
+    await snapshotPatrimoine(ctx, userId)
   },
 })
 
@@ -536,5 +648,36 @@ export const removeAsset = mutation({
     const asset = await ctx.db.get(assetId)
     if (!asset || asset.userId !== userId) throw new Error('Placement introuvable')
     await ctx.db.delete(assetId)
+    await snapshotPatrimoine(ctx, userId)
+  },
+})
+
+/**
+ * Répartition des dépenses RÉELLES par section sur une année (tous mois confondus).
+ * Pour l'anneau de répartition annuelle du tableau de bord.
+ */
+export const yearExpenseBreakdown = query({
+  args: { year: v.number() },
+  handler: async (ctx, { year }) => {
+    const userId = await getAuthUserId(ctx)
+    if (userId === null) return []
+    const months = await ctx.db
+      .query('months')
+      .withIndex('by_user_year_month', (q) =>
+        q.eq('userId', userId).eq('year', year),
+      )
+      .collect()
+    const totals: Record<string, number> = {}
+    for (const m of months) {
+      const entries = await ctx.db
+        .query('entries')
+        .withIndex('by_month', (q) => q.eq('monthId', m._id))
+        .collect()
+      for (const e of entries) {
+        if (e.section === 'income') continue
+        totals[e.section] = (totals[e.section] ?? 0) + e.real
+      }
+    }
+    return Object.entries(totals).map(([section, total]) => ({ section, total }))
   },
 })

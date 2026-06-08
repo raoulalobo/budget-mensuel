@@ -11,6 +11,7 @@ import {
   Paperclip,
   Plus,
   Repeat,
+  Search,
   Sparkles,
   StickyNote,
   Trash2,
@@ -66,6 +67,7 @@ export default function MonthView({
   const [photoOpen, setPhotoOpen] = useState(false)
   const [recapOpen, setRecapOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   // Navigation : passage d'année aux bornes (janvier ← déc année précédente,
   // décembre → jan année suivante).
@@ -182,14 +184,49 @@ export default function MonthView({
 
           <SummaryCards summary={data.summary} />
 
-          {/* Une carte par section. */}
+          {/* Prévision : reste à dépenser + net projeté si le budget est tenu */}
+          <div className="app-card flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-3 text-sm">
+            <span className="text-muted-foreground">Prévision du mois</span>
+            <span>
+              Reste à dépenser :{' '}
+              <strong className="tabular-nums">
+                {formatEUR(
+                  Math.max(0, data.summary.expenseBudget - data.summary.expenseReal),
+                )}
+              </strong>
+            </span>
+            <span>
+              Net projeté (budget tenu) :{' '}
+              <strong
+                className="tabular-nums"
+                style={{ color: data.summary.netBudget >= 0 ? '#16a34a' : '#dc2626' }}
+              >
+                {formatEUR(data.summary.netBudget)}
+              </strong>
+            </span>
+          </div>
+
+          {/* Recherche / filtre des lignes (libellé ou tag) */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="app-input pl-9"
+              placeholder="Rechercher une ligne (libellé ou tag)…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Une carte par section (filtrée par la recherche). */}
           <div className="grid gap-6">
             {SECTIONS.map((section) => (
               <SectionCard
                 key={section}
                 section={section}
                 monthId={data.month._id}
-                entries={data.entries.filter((e) => e.section === section)}
+                entries={data.entries
+                  .filter((e) => e.section === section)
+                  .filter((e) => matchSearch(e, search))}
               />
             ))}
           </div>
@@ -260,6 +297,15 @@ interface Entry {
   section: Section
   note?: string
   receiptId?: Id<'receipts'>
+  tags?: string[]
+}
+
+/** Une ligne correspond-elle à la recherche (libellé ou tag) ? */
+function matchSearch(entry: Entry, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  if (entry.label.toLowerCase().includes(q)) return true
+  return (entry.tags ?? []).some((t) => t.toLowerCase().includes(q))
 }
 
 /**
@@ -419,6 +465,18 @@ function EntryRow({
             if (label !== entry.label) void updateEntry({ entryId: entry._id, label })
           }}
         />
+        {entry.tags && entry.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 px-1">
+            {entry.tags.map((t) => (
+              <span
+                key={t}
+                className="app-badge bg-muted px-1.5 py-0 text-[10px] text-muted-foreground"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
       </td>
       <td className="px-2 py-1.5">
         <AmountInput

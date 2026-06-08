@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RecurrentesRouteImport } from './routes/recurrentes'
 import { Route as EpargneRouteImport } from './routes/epargne'
 import { Route as AvoirRouteImport } from './routes/avoir'
+import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MoisIndexRouteImport } from './routes/mois.index'
 import { Route as MoisYearMonthRouteImport } from './routes/mois.$year.$month'
@@ -29,6 +30,11 @@ const EpargneRoute = EpargneRouteImport.update({
 const AvoirRoute = AvoirRouteImport.update({
   id: '/avoir',
   path: '/avoir',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssistantRoute = AssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -49,6 +55,7 @@ const MoisYearMonthRoute = MoisYearMonthRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/assistant': typeof AssistantRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
   '/recurrentes': typeof RecurrentesRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/assistant': typeof AssistantRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
   '/recurrentes': typeof RecurrentesRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/assistant': typeof AssistantRoute
   '/avoir': typeof AvoirRoute
   '/epargne': typeof EpargneRoute
   '/recurrentes': typeof RecurrentesRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/assistant'
     | '/avoir'
     | '/epargne'
     | '/recurrentes'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/assistant'
     | '/avoir'
     | '/epargne'
     | '/recurrentes'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/assistant'
     | '/avoir'
     | '/epargne'
     | '/recurrentes'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AssistantRoute: typeof AssistantRoute
   AvoirRoute: typeof AvoirRoute
   EpargneRoute: typeof EpargneRoute
   RecurrentesRoute: typeof RecurrentesRoute
@@ -131,6 +144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AvoirRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assistant': {
+      id: '/assistant'
+      path: '/assistant'
+      fullPath: '/assistant'
+      preLoaderRoute: typeof AssistantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -157,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AssistantRoute: AssistantRoute,
   AvoirRoute: AvoirRoute,
   EpargneRoute: EpargneRoute,
   RecurrentesRoute: RecurrentesRoute,

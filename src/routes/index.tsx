@@ -177,9 +177,54 @@ function Dashboard() {
         </ChartCard>
       </div>
 
-      {/* Répartition des dépenses du dernier mois renseigné */}
-      {lastFilled && <ExpenseBreakdown year={year} month={lastFilled.month} />}
+      {/* Répartition des dépenses : dernier mois renseigné + sur l'année */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {lastFilled && <ExpenseBreakdown year={year} month={lastFilled.month} />}
+        <YearExpenseBreakdown year={year} />
+      </div>
     </div>
+  )
+}
+
+/**
+ * Anneau de répartition des dépenses RÉELLES par section sur toute l'année.
+ */
+function YearExpenseBreakdown({ year }: { year: number }) {
+  const data = useQuery(api.budget.yearExpenseBreakdown, { year })
+  if (!data) return null
+  const slices = data
+    .map((d) => ({
+      name: SECTION_LABELS[d.section as keyof typeof SECTION_LABELS] ?? d.section,
+      value: round(d.total),
+      color:
+        SECTION_COLORS[d.section as keyof typeof SECTION_COLORS] ?? '#888',
+    }))
+    .filter((s) => s.value > 0)
+  if (slices.length === 0) return null
+
+  return (
+    <ChartCard title={`Répartition des dépenses — année ${year}`}>
+      <ResponsiveContainer width="100%" height={300}>
+        <PieChart>
+          <Pie
+            data={slices}
+            dataKey="value"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            innerRadius={70}
+            outerRadius={110}
+            paddingAngle={2}
+          >
+            {slices.map((s) => (
+              <Cell key={s.name} fill={s.color} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v: number) => formatEUR(v)} />
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
+    </ChartCard>
   )
 }
 
