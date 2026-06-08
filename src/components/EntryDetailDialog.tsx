@@ -139,7 +139,10 @@ export default function EntryDetailDialog({
     return { base64: dataUrl.split(',')[1] ?? '', mime: blob.type || 'image/jpeg' }
   }
 
-  /** Analyse IA de la photo : propose le total détecté à appliquer au réel. */
+  /**
+   * Analyse IA de la photo : propose le total détecté à appliquer au réel et,
+   * si la note est encore vide, génère et enregistre une note pertinente.
+   */
   async function handleAnalyze() {
     setAnalyzing(true)
     setError(null)
@@ -157,6 +160,15 @@ export default function EntryDetailDialog({
       }
       const total = res.rows.reduce((s, r) => s + (r.real || r.budget || 0), 0)
       setDetected(Math.round(total * 100) / 100)
+
+      // Note : si la ligne n'en a pas encore, on remplit ET on enregistre la
+      // note proposée par l'IA (la ligne existe déjà). On n'écrase jamais une
+      // note saisie par l'utilisateur. Le libellé d'une ligne existante n'est
+      // pas modifié (il s'édite directement dans le tableau).
+      if (!note.trim() && res.summary.note) {
+        setNote(res.summary.note)
+        await updateEntry({ entryId: entry._id, note: res.summary.note })
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'analyse.")
     } finally {

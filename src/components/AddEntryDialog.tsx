@@ -80,7 +80,10 @@ export default function AddEntryDialog({
     }
   }
 
-  /** Analyse IA de la photo → propose le total détecté pour le champ Réel. */
+  /**
+   * Analyse IA de la photo : propose le total pour le champ Réel ET pré-remplit
+   * le libellé et la note (sans jamais écraser une saisie déjà faite).
+   */
   async function handleAnalyze() {
     if (!image) return
     setAnalyzing(true)
@@ -94,6 +97,13 @@ export default function AddEntryDialog({
       }
       const total = res.rows.reduce((s, r) => s + (r.real || r.budget || 0), 0)
       setDetected(Math.round(total * 100) / 100)
+
+      // Libellé : on remplit le champ s'il est encore vide (résumé IA, sinon
+      // libellé de la première ligne détectée).
+      const aiLabel = res.summary.label || res.rows[0]?.label || ''
+      if (!label.trim() && aiLabel) setLabel(aiLabel)
+      // Note : on remplit si vide et si l'IA a produit une note pertinente.
+      if (!note.trim() && res.summary.note) setNote(res.summary.note)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'analyse.")
     } finally {

@@ -37,22 +37,40 @@ interface ExtractedRow {
   real: number
 }
 
-// Consigne donnée au modèle : extraire des lignes et répondre en JSON pur.
-const SYSTEM_PROMPT = `Tu es un assistant qui extrait des lignes budgétaires de documents financiers (fiches de paie, factures, tickets de caisse, relevés bancaires).
-Tu réponds UNIQUEMENT avec un tableau JSON, sans aucun texte autour ni bloc de code Markdown.
-Chaque élément du tableau a EXACTEMENT ces trois clés :
-- "section" : une des valeurs EXACTES parmi "income","fixed","variable","credit","saving"
-- "label"   : libellé court en français (ex. "Salaire", "Loyer", "Courses Carrefour")
-- "amount"  : nombre positif en euros (point décimal, sans symbole ni espace)
+// Résumé consolidé du document : un libellé global + une note de contexte.
+// Sert aux flux « ligne unique » (ajout / détail d'une ligne) pour pré-remplir
+// le libellé et la note, en plus du montant.
+interface Summary {
+  label: string
+  note: string
+}
 
-Règles de classification :
+// Consigne donnée au modèle : extraire des lignes ET un résumé, en JSON pur.
+const SYSTEM_PROMPT = `Tu es un assistant qui extrait des informations budgétaires de documents financiers (fiches de paie, factures, tickets de caisse, relevés bancaires).
+Tu réponds UNIQUEMENT avec un OBJET JSON, sans aucun texte autour ni bloc de code Markdown.
+L'objet a EXACTEMENT ces deux clés :
+
+1) "summary" : un objet résumant TOUT le document, avec :
+   - "label" : un libellé court et parlant pour l'ensemble du document, en français
+     (ex. "Salaire", "Facture EDF", "Courses Carrefour", "Restaurant Le Bistrot").
+     Privilégie le nom du marchand/émetteur ou la nature de la dépense.
+   - "note"  : une note de contexte UTILE et concise (marchand, date, n° de
+     référence, et éventuellement les principaux articles). Si rien d'utile à
+     noter, mets une chaîne vide "". N'invente aucune information absente du document.
+
+2) "entries" : un tableau de lignes détaillées. Chaque élément a EXACTEMENT :
+   - "section" : une des valeurs EXACTES parmi "income","fixed","variable","credit","saving"
+   - "label"   : libellé court en français (ex. "Salaire", "Loyer", "Pain")
+   - "amount"  : nombre positif en euros (point décimal, sans symbole ni espace)
+
+Règles de classification (pour "section") :
 - Salaire, paie, primes, remboursements, revenus → "income"
 - Charges récurrentes mensuelles (loyer, électricité, eau, abonnements, assurances, internet, téléphone) → "fixed"
 - Achats ponctuels, tickets de caisse, courses, restaurants, carburant, loisirs → "variable"
 - Prêts, crédits, mensualités d'emprunt → "credit"
 - Virements vers épargne, livret, PEL, placements → "saving"
 
-Cas particuliers :
+Cas particuliers (pour "entries") :
 - Fiche de paie : retourne le NET À PAYER comme une seule ligne "income".
 - Ticket de caisse / facture avec plusieurs articles : DÉTAILLE chaque article ou
   poste comme une ligne distincte (label = nom de l'article, amount = son prix).
@@ -62,10 +80,11 @@ Cas particuliers :
 - Si un même article apparaît en quantité (ex. "2 x 1,50"), une seule ligne avec
   le montant total de cet article (3,00).
 - N'invente rien : ne renvoie aucune ligne dont le montant n'est pas lisible.
-Si le document ne contient aucune information budgétaire, réponds avec un tableau vide [].`
+Si le document ne contient aucune information budgétaire, réponds avec
+{"summary":{"label":"","note":""},"entries":[]}.`
 
 const USER_TEXT =
-  'Extrais les lignes de budget de ce document. Réponds avec le tableau JSON uniquement.'
+  'Analyse ce document. Réponds avec l\'objet JSON {summary, entries} uniquement.'
 
 export const extractEntriesFromImage = action({
   args: {
@@ -77,11 +96,14 @@ export const extractEntriesFromImage = action({
   handler: async (
     ctx,
     { imageBase64, mimeType },
-  ): Promise<{ rows: ExtractedRow[]; errors: string[] }> => {
+  ): Promise<{ rows: ExtractedRow[]; errors: string[]; summary: Summary }> => {
+    // Résumé vide par défaut (renvoyé sur tous les chemins d'erreur).
+    const emptySummary: Summary = { label: '', note: '' }
+
     // Garde-fou : on n'expose pas un proxy vision gratuit aux non-connectés.
     const userId = await getAuthUserId(ctx)
     if (userId === null) {
-      return { rows: [], errors: ['Non authentifié.'] }
+      return { rows: [], errors: ['Non authentifié.'], summary: emptySummary }
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY
@@ -91,6 +113,7 @@ export const extractEntriesFromImage = action({
         errors: [
           'Clé ANTHROPIC_API_KEY manquante côté serveur. Configurez-la avec : npx convex env set ANTHROPIC_API_KEY <clé>',
         ],
+        summary: emptySummary,
       }
     }
     const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6'
@@ -134,6 +157,7 @@ export const extractEntriesFromImage = action({
         errors: [
           `Impossible de contacter l'API vision : ${e instanceof Error ? e.message : 'erreur réseau'}.`,
         ],
+        summary: emptySummary,
       }
     }
 
@@ -142,6 +166,7 @@ export const extractEntriesFromImage = action({
       return {
         rows: [],
         errors: [`Erreur API vision (HTTP ${resp.status}). ${detail.slice(0, 200)}`],
+        summary: emptySummary,
       }
     }
 
@@ -159,22 +184,45 @@ export const extractEntriesFromImage = action({
     const fence = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/i)
     if (fence) jsonText = fence[1].trim()
 
+    // Parsing tolérant : on tente le JSON tel quel, et en cas d'échec on extrait
+    // le premier bloc objet/tableau (le modèle peut entourer le JSON de texte).
     let parsed: unknown
-    try {
-      parsed = JSON.parse(jsonText)
-    } catch {
+    function tryParse(s: string): unknown | undefined {
+      try {
+        return JSON.parse(s)
+      } catch {
+        return undefined
+      }
+    }
+    parsed = tryParse(jsonText)
+    if (parsed === undefined) {
+      const block = jsonText.match(/[{[][\s\S]*[}\]]/)
+      if (block) parsed = tryParse(block[0])
+    }
+    if (parsed === undefined) {
+      console.error('VISION JSON illisible — réponse brute :', raw.slice(0, 1000))
       return {
         rows: [],
         errors: ['Réponse du modèle illisible (JSON invalide). Réessayez avec une photo plus nette.'],
+        summary: emptySummary,
       }
     }
 
-    // Accepte soit un tableau direct, soit un objet { entries: [...] }.
+    // Accepte soit un tableau direct (ancien format), soit un objet
+    // { summary, entries } (nouveau format).
     const arr: any[] = Array.isArray(parsed)
       ? parsed
       : Array.isArray((parsed as any)?.entries)
         ? (parsed as any).entries
         : []
+
+    // Résumé consolidé (libellé + note) : chaînes nettoyées, vides par défaut.
+    const rawSummary = (parsed as any)?.summary
+    const summary: Summary = {
+      label:
+        typeof rawSummary?.label === 'string' ? rawSummary.label.trim() : '',
+      note: typeof rawSummary?.note === 'string' ? rawSummary.note.trim() : '',
+    }
 
     const rows: ExtractedRow[] = []
     const errors: string[] = []
@@ -204,6 +252,6 @@ export const extractEntriesFromImage = action({
       errors.push("Aucune ligne détectée sur l'image.")
     }
 
-    return { rows, errors }
+    return { rows, errors, summary }
   },
 })
