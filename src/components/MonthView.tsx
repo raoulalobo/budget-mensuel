@@ -269,7 +269,7 @@ export default function MonthView({
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               className="app-input pl-9"
-              placeholder="Rechercher une ligne (libellé ou tag)…"
+              placeholder="Rechercher une ligne (libellé, note ou tag)…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -364,6 +364,8 @@ function matchSearch(entry: Entry, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
   if (entry.label.toLowerCase().includes(q)) return true
+  // La note (détail de facture, marchand, date…) est aussi fouillée.
+  if (entry.note && entry.note.toLowerCase().includes(q)) return true
   return (entry.tags ?? []).some((t) => t.toLowerCase().includes(q))
 }
 
