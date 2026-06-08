@@ -127,13 +127,13 @@ function Home() {
       {/* ── Barre supérieure ──────────────────────────────────────────────── */}
       <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
-          <span className="flex items-center gap-2 font-bold">
+          <span className="flex shrink-0 items-center gap-2 font-bold">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Wallet className="h-4 w-4" />
             </span>
-            Budget mensuel
+            <span className="hidden sm:inline">Budget mensuel</span>
           </span>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={toggle}

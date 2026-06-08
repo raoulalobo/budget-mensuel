@@ -393,3 +393,12 @@ a {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
 }
+
+/* Masque la barre de défilement tout en gardant le scroll (nav mobile défilable). */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}

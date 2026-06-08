@@ -51,15 +51,19 @@ function Shell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-border bg-card/80 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
           {/* Logo + titre */}
-          <Link to="/tableau" className="mr-4 flex items-center gap-2 font-bold">
+          <Link
+            to="/tableau"
+            className="mr-2 flex shrink-0 items-center gap-2 font-bold"
+          >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Wallet className="h-4 w-4" />
             </span>
             <span className="hidden sm:inline">Budget mensuel</span>
           </Link>
 
-          {/* Liens de navigation. `activeProps` met en évidence l'onglet courant. */}
-          <nav className="flex items-center gap-1">
+          {/* Liens de navigation : la nav rétrécit et défile horizontalement sur
+              petit écran (pattern « tab bar »), pour ne jamais déborder la page. */}
+          <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto no-scrollbar">
             <NavLink to="/tableau" icon={<LayoutDashboard className="h-4 w-4" />}>
               Tableau
             </NavLink>
@@ -83,7 +87,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             </NavLink>
           </nav>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {/* Sélecteur d'espace budget partagé */}
             <BudgetSwitcher />
             {/* Bascule de thème clair/sombre */}
@@ -277,9 +281,10 @@ function NavLink({
     <Link
       to={to}
       activeOptions={{ exact: to === '/' }}
-      className="app-btn-ghost px-3 text-muted-foreground"
+      className="app-btn-ghost shrink-0 px-3 text-muted-foreground"
       activeProps={{
-        className: 'app-btn px-3 bg-accent text-accent-foreground font-semibold',
+        className:
+          'app-btn shrink-0 px-3 bg-accent text-accent-foreground font-semibold',
       }}
     >
       {icon}
