@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Check,
   Eye,
+  Settings,
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -42,7 +43,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
 /** Corps du layout (séparé pour pouvoir consommer le contexte de rôle). */
 function Shell({ children }: { children: React.ReactNode }) {
-  const { signOut } = useAuthActions()
   const { dark, toggle } = useDarkMode()
   const role = useBudgetRole()
 
@@ -86,8 +86,6 @@ function Shell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-1">
             {/* Sélecteur d'espace budget partagé */}
             <BudgetSwitcher />
-            {/* Accès au profil (avatar + pseudo) */}
-            <ProfileButton />
             {/* Bascule de thème clair/sombre */}
             <button
               type="button"
@@ -98,15 +96,8 @@ function Shell({ children }: { children: React.ReactNode }) {
             >
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="app-btn-ghost"
-              title="Se déconnecter"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Déconnexion</span>
-            </button>
+            {/* Menu de compte (profil + déconnexion) */}
+            <ProfileMenu />
           </div>
         </div>
 
@@ -193,24 +184,79 @@ function roleLabel(role: 'owner' | 'editor' | 'viewer'): string {
 }
 
 /**
- * Bouton d'accès au profil : avatar (ou initiale) + pseudo, lien vers /profil.
- * Mis en évidence quand on est sur la page profil (`activeProps`).
+ * Menu de compte : déclenché par l'avatar + nom, il regroupe les actions liées
+ * au compte en sous-éléments — « Modifier mon profil » (→ /profil) et
+ * « Déconnexion ». Même pattern de menu déroulant que `BudgetSwitcher`.
  */
-function ProfileButton() {
+function ProfileMenu() {
   const me = useQuery(api.users.me)
+  const { signOut } = useAuthActions()
+  const [open, setOpen] = useState(false)
   if (!me) return null
+
+  const label = me.name ?? me.email ?? 'Profil'
+
   return (
-    <Link
-      to="/profil"
-      className="app-btn-ghost px-2"
-      activeProps={{ className: 'app-btn px-2 bg-accent text-accent-foreground' }}
-      title="Mon profil"
-    >
-      <Avatar avatarUrl={me.avatarUrl} name={me.name} email={me.email} size={24} />
-      <span className="hidden max-w-28 truncate sm:inline">
-        {me.name ?? me.email ?? 'Profil'}
-      </span>
-    </Link>
+    <div className="relative">
+      {/* Déclencheur : avatar + nom + chevron */}
+      <button
+        type="button"
+        className="app-btn-ghost px-2"
+        onClick={() => setOpen((o) => !o)}
+        title="Mon compte"
+      >
+        <Avatar avatarUrl={me.avatarUrl} name={me.name} email={me.email} size={24} />
+        <span className="hidden max-w-28 truncate sm:inline">{label}</span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+      </button>
+
+      {open && (
+        <>
+          {/* Voile cliquable pour fermer le menu */}
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-40 mt-1 w-56 overflow-hidden rounded-md border border-border bg-card shadow-lg">
+            {/* En-tête : repère visuel (avatar + nom + email) */}
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+              <Avatar
+                avatarUrl={me.avatarUrl}
+                name={me.name}
+                email={me.email}
+                size={32}
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{label}</p>
+                {me.email && (
+                  <p className="truncate text-xs text-muted-foreground">{me.email}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Sous-élément : modifier le profil */}
+            <Link
+              to="/profil"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+            >
+              <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
+              Modifier mon profil
+            </Link>
+
+            {/* Sous-élément : déconnexion */}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                void signOut()
+              }}
+              className="flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm text-destructive hover:bg-accent"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              Déconnexion
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
