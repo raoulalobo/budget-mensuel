@@ -95,14 +95,20 @@ export default function AddEntryDialog({
         setError(res.errors[0])
         return
       }
-      const total = res.rows.reduce((s, r) => s + (r.real || r.budget || 0), 0)
+      // Montant : on privilégie le TOTAL imprimé lu par l'IA ; à défaut (total
+      // illisible), on retombe sur la somme des articles détectés.
+      const total =
+        res.summary.total > 0
+          ? res.summary.total
+          : res.rows.reduce((s, r) => s + (r.real || r.budget || 0), 0)
       setDetected(Math.round(total * 100) / 100)
 
       // Libellé : on remplit le champ s'il est encore vide (résumé IA, sinon
       // libellé de la première ligne détectée).
       const aiLabel = res.summary.label || res.rows[0]?.label || ''
       if (!label.trim() && aiLabel) setLabel(aiLabel)
-      // Note : on remplit si vide et si l'IA a produit une note pertinente.
+      // Note : on remplit si vide et si l'IA a produit une note (détail des
+      // articles + contexte).
       if (!note.trim() && res.summary.note) setNote(res.summary.note)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'analyse.")

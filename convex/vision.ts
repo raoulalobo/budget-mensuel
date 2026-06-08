@@ -37,11 +37,13 @@ interface ExtractedRow {
   real: number
 }
 
-// Résumé consolidé du document : un libellé global + une note de contexte.
-// Sert aux flux « ligne unique » (ajout / détail d'une ligne) pour pré-remplir
-// le libellé et la note, en plus du montant.
+// Résumé consolidé du document, pour les flux « ligne unique » (ajout / détail).
+//  - label : libellé global du document
+//  - total : le « Total » imprimé (sert de montant ; 0 si non lisible)
+//  - note  : le détail des articles + contexte (marchand, date, référence)
 interface Summary {
   label: string
+  total: number
   note: string
 }
 
@@ -54,9 +56,13 @@ L'objet a EXACTEMENT ces deux clés :
    - "label" : un libellé court et parlant pour l'ensemble du document, en français
      (ex. "Salaire", "Facture EDF", "Courses Carrefour", "Restaurant Le Bistrot").
      Privilégie le nom du marchand/émetteur ou la nature de la dépense.
-   - "note"  : une note de contexte UTILE et concise (marchand, date, n° de
-     référence, et éventuellement les principaux articles). Si rien d'utile à
-     noter, mets une chaîne vide "". N'invente aucune information absente du document.
+   - "total" : le MONTANT TOTAL du document tel qu'IMPRIMÉ (le "Total", "Montant
+     total", "Total TTC", "NET À PAYER", "à payer"). Nombre positif (point
+     décimal, sans symbole ni espace). Mets 0 si aucun total n'est lisible.
+   - "note"  : le DÉTAIL des articles/postes, un par ligne au format
+     "Nom de l'article — prix", PUIS le contexte utile (marchand, date, n° de
+     référence). S'il n'y a qu'un seul poste ou rien d'utile, mets une note brève
+     ou une chaîne vide "". N'invente aucune information absente du document.
 
 2) "entries" : un tableau de lignes détaillées. Chaque élément a EXACTEMENT :
    - "section" : une des valeurs EXACTES parmi "income","fixed","variable","credit","saving"
@@ -81,7 +87,7 @@ Cas particuliers (pour "entries") :
   le montant total de cet article (3,00).
 - N'invente rien : ne renvoie aucune ligne dont le montant n'est pas lisible.
 Si le document ne contient aucune information budgétaire, réponds avec
-{"summary":{"label":"","note":""},"entries":[]}.`
+{"summary":{"label":"","total":0,"note":""},"entries":[]}.`
 
 const USER_TEXT =
   'Analyse ce document. Réponds avec l\'objet JSON {summary, entries} uniquement.'
@@ -98,7 +104,7 @@ export const extractEntriesFromImage = action({
     { imageBase64, mimeType },
   ): Promise<{ rows: ExtractedRow[]; errors: string[]; summary: Summary }> => {
     // Résumé vide par défaut (renvoyé sur tous les chemins d'erreur).
-    const emptySummary: Summary = { label: '', note: '' }
+    const emptySummary: Summary = { label: '', total: 0, note: '' }
 
     // Garde-fou : on n'expose pas un proxy vision gratuit aux non-connectés.
     const userId = await getAuthUserId(ctx)
@@ -216,11 +222,13 @@ export const extractEntriesFromImage = action({
         ? (parsed as any).entries
         : []
 
-    // Résumé consolidé (libellé + note) : chaînes nettoyées, vides par défaut.
+    // Résumé consolidé (libellé + total + note), nettoyé, vide par défaut.
     const rawSummary = (parsed as any)?.summary
+    const rawTotal = Number(rawSummary?.total)
     const summary: Summary = {
       label:
         typeof rawSummary?.label === 'string' ? rawSummary.label.trim() : '',
+      total: Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0,
       note: typeof rawSummary?.note === 'string' ? rawSummary.note.trim() : '',
     }
 

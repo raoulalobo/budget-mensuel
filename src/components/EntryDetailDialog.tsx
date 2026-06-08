@@ -158,13 +158,18 @@ export default function EntryDetailDialog({
         setError(res.errors[0])
         return
       }
-      const total = res.rows.reduce((s, r) => s + (r.real || r.budget || 0), 0)
+      // Montant : on privilégie le TOTAL imprimé lu par l'IA ; à défaut, somme
+      // des articles détectés.
+      const total =
+        res.summary.total > 0
+          ? res.summary.total
+          : res.rows.reduce((s, r) => s + (r.real || r.budget || 0), 0)
       setDetected(Math.round(total * 100) / 100)
 
       // Note : si la ligne n'en a pas encore, on remplit ET on enregistre la
-      // note proposée par l'IA (la ligne existe déjà). On n'écrase jamais une
-      // note saisie par l'utilisateur. Le libellé d'une ligne existante n'est
-      // pas modifié (il s'édite directement dans le tableau).
+      // note proposée par l'IA (détail des articles + contexte). On n'écrase
+      // jamais une note saisie par l'utilisateur. Le libellé d'une ligne
+      // existante n'est pas modifié (il s'édite directement dans le tableau).
       if (!note.trim() && res.summary.note) {
         setNote(res.summary.note)
         await updateEntry({ entryId: entry._id, note: res.summary.note })
