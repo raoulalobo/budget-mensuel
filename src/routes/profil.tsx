@@ -17,6 +17,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { uploadImageFile } from '../lib/upload'
 import { SkeletonCard } from '../components/Skeleton'
+import PasswordInput from '../components/PasswordInput'
 
 /**
  * Route /profil : gestion du compte de l'utilisateur connecté.
@@ -252,32 +253,26 @@ function PasswordCard() {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Mot de passe actuel</label>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="current-password"
-            className="app-input"
             value={current}
-            onChange={(e) => setCurrent(e.target.value)}
+            onChange={setCurrent}
           />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Nouveau (≥ 8 car.)</label>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
-            className="app-input"
             value={next}
-            onChange={(e) => setNext(e.target.value)}
+            onChange={setNext}
           />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Confirmer</label>
-          <input
-            type="password"
+          <PasswordInput
             autoComplete="new-password"
-            className="app-input"
             value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            onChange={setConfirm}
           />
         </div>
       </div>

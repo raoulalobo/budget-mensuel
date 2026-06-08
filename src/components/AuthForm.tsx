@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { Wallet } from 'lucide-react'
+import PasswordInput from './PasswordInput'
 
 /**
  * Formulaire d'authentification (Convex Auth — provider "password").
@@ -17,12 +18,18 @@ export default function AuthForm() {
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    // À l'inscription : les deux mots de passe doivent correspondre.
+    if (mode === 'signUp' && password !== confirm) {
+      setError('Les mots de passe ne correspondent pas.')
+      return
+    }
     setLoading(true)
     try {
       // `flow` indique à Convex Auth s'il s'agit d'une connexion ou inscription.
@@ -76,18 +83,15 @@ export default function AuthForm() {
             <label htmlFor="password" className="text-sm font-medium">
               Mot de passe
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               required
               minLength={8}
               autoComplete={
                 mode === 'signIn' ? 'current-password' : 'new-password'
               }
-              className="app-input"
-              placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
             />
             {mode === 'signUp' && (
               <span className="text-xs text-muted-foreground">
@@ -95,6 +99,23 @@ export default function AuthForm() {
               </span>
             )}
           </div>
+
+          {/* Confirmation du mot de passe (inscription uniquement) */}
+          {mode === 'signUp' && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="confirm" className="text-sm font-medium">
+                Confirmer le mot de passe
+              </label>
+              <PasswordInput
+                id="confirm"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={confirm}
+                onChange={setConfirm}
+              />
+            </div>
+          )}
 
           {error && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -124,6 +145,7 @@ export default function AuthForm() {
             onClick={() => {
               setMode(mode === 'signIn' ? 'signUp' : 'signIn')
               setError(null)
+              setConfirm('')
             }}
           >
             {mode === 'signIn' ? 'Créer un compte' : 'Se connecter'}
