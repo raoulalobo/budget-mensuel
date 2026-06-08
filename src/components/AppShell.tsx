@@ -60,7 +60,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           {/* Liens de navigation. `activeProps` met en évidence l'onglet courant. */}
           <nav className="flex items-center gap-1">
             <NavLink to="/" icon={<LayoutDashboard className="h-4 w-4" />}>
-              Tableau de bord
+              Tableau
             </NavLink>
             <NavLink to="/mois" icon={<CalendarDays className="h-4 w-4" />}>
               Mois
@@ -72,10 +72,10 @@ function Shell({ children }: { children: React.ReactNode }) {
               Épargne
             </NavLink>
             <NavLink to="/recurrentes" icon={<Repeat className="h-4 w-4" />}>
-              Récurrentes
+              Modèles
             </NavLink>
             <NavLink to="/assistant" icon={<Sparkles className="h-4 w-4" />}>
-              Assistant
+              IA
             </NavLink>
             <NavLink to="/partage" icon={<Users className="h-4 w-4" />}>
               Partage
@@ -212,7 +212,7 @@ function NavLink({
       }}
     >
       {icon}
-      <span className="hidden sm:inline">{children}</span>
+      <span className="hidden whitespace-nowrap sm:inline">{children}</span>
     </Link>
   )
 }
