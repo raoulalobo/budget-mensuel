@@ -15,6 +15,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { formatEUR, monthName } from '../lib/budget'
 import { useBudgetRole } from '../lib/budgetRole'
+import { SkeletonTableRows } from '../components/Skeleton'
 
 /**
  * Route /avoir : patrimoine / placements (onglet "Avoir" de la feuille).
@@ -108,11 +109,7 @@ function AvoirPage() {
           </thead>
           <tbody>
             {assets === undefined ? (
-              <tr>
-                <td colSpan={3} className="px-4 py-3 text-muted-foreground">
-                  Chargement…
-                </td>
-              </tr>
+              <SkeletonTableRows rows={3} cols={3} />
             ) : assets.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-4 py-3 text-center text-muted-foreground">

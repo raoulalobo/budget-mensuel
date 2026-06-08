@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { formatEUR } from '../lib/budget'
 import { useBudgetRole } from '../lib/budgetRole'
+import { SkeletonCard } from '../components/Skeleton'
 
 /**
  * Route /epargne : objectifs d'épargne.
@@ -66,7 +67,10 @@ function EpargnePage() {
       {/* Liste des objectifs */}
       <div className="grid gap-4">
         {goals === undefined ? (
-          <p className="text-muted-foreground">Chargement…</p>
+          <>
+            <SkeletonCard lines={2} />
+            <SkeletonCard lines={2} />
+          </>
         ) : goals.length === 0 ? (
           <div className="app-card p-10 text-center text-muted-foreground">
             Aucun objectif — créez-en un ci-dessous (ex. « Fonds d'urgence »).

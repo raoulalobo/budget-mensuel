@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { SECTIONS, SECTION_LABELS, type Section } from '../lib/budget'
 import { useBudgetRole } from '../lib/budgetRole'
+import { SkeletonTableRows } from '../components/Skeleton'
 
 /**
  * Route /recurrentes : gestion des lignes récurrentes (loyer, abonnements…).
@@ -103,11 +104,7 @@ function RecurringPage() {
           </thead>
           <tbody>
             {items === undefined ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-3 text-muted-foreground">
-                  Chargement…
-                </td>
-              </tr>
+              <SkeletonTableRows rows={3} cols={4} />
             ) : items.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-3 text-center text-muted-foreground">

@@ -16,6 +16,7 @@ import {
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { uploadImageFile } from '../lib/upload'
+import { SkeletonCard } from '../components/Skeleton'
 
 /**
  * Route /profil : gestion du compte de l'utilisateur connecté.
@@ -44,7 +45,11 @@ function ProfilePage() {
       </div>
 
       {me === undefined ? (
-        <p className="text-muted-foreground">Chargement…</p>
+        <>
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={3} />
+        </>
       ) : me === null ? (
         <p className="text-muted-foreground">Non connecté.</p>
       ) : (

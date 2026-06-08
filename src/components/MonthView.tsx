@@ -32,6 +32,7 @@ import {
 import { generateMonthPdf } from '../lib/pdf'
 import { useBudgetRole } from '../lib/budgetRole'
 import SummaryCards from './SummaryCards'
+import { Skeleton, SkeletonStatCards } from './Skeleton'
 import ImportDialog from './ImportDialog'
 import PhotoImportDialog from './PhotoImportDialog'
 import EntryDetailDialog from './EntryDetailDialog'
@@ -141,7 +142,22 @@ export default function MonthView({
       </div>
 
       {data === undefined ? (
-        <p className="text-muted-foreground">Chargement…</p>
+        // Esquisse pendant le chargement : barre d'actions + cartes + sections.
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 5 }, (_, i) => (
+              <Skeleton key={i} className="h-9 w-32" />
+            ))}
+          </div>
+          <SkeletonStatCards count={3} className="grid gap-4 sm:grid-cols-3" />
+          {Array.from({ length: 2 }, (_, i) => (
+            <div key={i} className="app-card flex flex-col gap-3 p-4">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          ))}
+        </div>
       ) : data === null ? (
         // Mois pas encore initialisé : proposition de création.
         <div className="app-card flex flex-col items-center gap-4 p-10 text-center">

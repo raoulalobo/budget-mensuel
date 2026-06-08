@@ -4,6 +4,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { formatEUR, monthName } from '../lib/budget'
 import YearSelector from '../components/YearSelector'
+import { Skeleton } from '../components/Skeleton'
 
 /**
  * Route /mois : grille des 12 mois d'une année sélectionnable.
@@ -59,7 +60,12 @@ function MonthsIndex() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+        {months === undefined
+          ? // Esquisse : 12 cartes de mois pendant le chargement.
+            Array.from({ length: 12 }, (_, i) => (
+              <Skeleton key={i} className="h-28 w-full" />
+            ))
+          : Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
           const data = byMonth.get(m)
           const net = data?.summary.netReal ?? 0
           const hasData =

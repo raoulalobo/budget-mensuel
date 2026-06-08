@@ -14,6 +14,7 @@ import {
   DoorOpen,
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
+import { SkeletonCard } from '../components/Skeleton'
 
 /**
  * Route /partage : gestion du BUDGET PARTAGÉ.
@@ -53,7 +54,7 @@ function SharePage() {
       <JoinCard />
 
       {team === undefined ? (
-        <p className="text-muted-foreground">Chargement…</p>
+        <SkeletonCard lines={3} />
       ) : team === null ? null : team.isOwner ? (
         // Propriétaire de l'espace regardé : invitations + gestion des membres.
         <>

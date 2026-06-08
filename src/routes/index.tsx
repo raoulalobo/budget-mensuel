@@ -35,6 +35,11 @@ import {
 import { generateYearPdf } from '../lib/pdf'
 import YearSelector from '../components/YearSelector'
 import SummaryCards from '../components/SummaryCards'
+import {
+  Skeleton,
+  SkeletonStatCards,
+  SkeletonChartCard,
+} from '../components/Skeleton'
 
 /**
  * Route "/" : tableau de bord annuel.
@@ -59,9 +64,21 @@ function Dashboard() {
   // Mois sélectionné pour le récap mensuel (null = dernier mois renseigné).
   const [pickedMonth, setPickedMonth] = useState<number | null>(null)
 
-  // Tant que les données chargent.
+  // Tant que les données chargent : esquisse du tableau de bord.
   if (months === undefined || assets === undefined) {
-    return <p className="text-muted-foreground">Chargement du tableau de bord…</p>
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-9 w-40" />
+        </div>
+        <SkeletonStatCards />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <SkeletonChartCard />
+          <SkeletonChartCard />
+        </div>
+      </div>
+    )
   }
 
   // Base vide => écran d'accueil avec import de démo.
@@ -281,7 +298,7 @@ function MonthlyDashboard({
       </div>
 
       {data === undefined ? (
-        <p className="text-muted-foreground">Chargement…</p>
+        <SkeletonStatCards count={3} className="grid gap-4 sm:grid-cols-3" />
       ) : data === null ? (
         <div className="app-card p-6 text-center text-muted-foreground">
           Aucune donnée pour {monthName(month)} {year}.

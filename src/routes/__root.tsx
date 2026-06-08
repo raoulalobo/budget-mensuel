@@ -11,6 +11,11 @@ import ConvexProvider from '../integrations/convex/provider'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import AppShell from '../components/AppShell'
 import AuthForm from '../components/AuthForm'
+import {
+  Skeleton,
+  SkeletonStatCards,
+  SkeletonChartCard,
+} from '../components/Skeleton'
 
 import appCss from '../styles.css?url'
 
@@ -57,8 +62,22 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               - Authenticated  : on affiche l'app (shell + page courante)
           */}
           <AuthLoading>
-            <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-              Chargement…
+            {/* Esquisse de l'app pendant la résolution de l'authentification. */}
+            <div className="min-h-screen">
+              <div className="border-b border-border bg-card/80">
+                <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="ml-auto h-7 w-24" />
+                </div>
+              </div>
+              <div className="mx-auto max-w-6xl px-4 py-6">
+                <SkeletonStatCards />
+                <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                  <SkeletonChartCard />
+                  <SkeletonChartCard />
+                </div>
+              </div>
             </div>
           </AuthLoading>
 
