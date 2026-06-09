@@ -86,6 +86,33 @@ export default defineSchema({
   }).index('by_user', ['userId']),
 
   /**
+   * TABLES LEGACY (Avoir/Épargne) — fonctionnalités retirées. Conservées
+   * TEMPORAIREMENT dans le schéma le temps de purger les données existantes en
+   * prod (Convex refuse de retirer une table non vide). À supprimer après purge.
+   */
+  assets: defineTable({
+    userId: v.id('users'),
+    label: v.string(),
+    amount: v.number(),
+    order: v.number(),
+  }).index('by_user', ['userId']),
+  assetHistory: defineTable({
+    userId: v.id('users'),
+    year: v.number(),
+    month: v.number(),
+    total: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_year_month', ['userId', 'year', 'month']),
+  savingsGoals: defineTable({
+    userId: v.id('users'),
+    label: v.string(),
+    target: v.number(),
+    current: v.number(),
+    order: v.number(),
+  }).index('by_user', ['userId']),
+
+  /**
    * ─────────────────────── BUDGET PARTAGÉ ───────────────────────
    *
    * Principe (par délégation, sans migration des données existantes) :
