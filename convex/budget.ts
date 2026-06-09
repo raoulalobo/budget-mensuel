@@ -215,14 +215,6 @@ export const assistantSnapshot = query({
       })
     }
 
-    const assets = await ctx.db
-      .query('assets')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .collect()
-    const goals = await ctx.db
-      .query('savingsGoals')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .collect()
     const recurring = await ctx.db
       .query('recurringLines')
       .withIndex('by_user', (q) => q.eq('userId', userId))
@@ -231,12 +223,6 @@ export const assistantSnapshot = query({
     return {
       months: monthData,
       sectionLabels,
-      assets: assets.map((a) => ({ label: a.label, amount: a.amount })),
-      goals: goals.map((g) => ({
-        label: g.label,
-        target: g.target,
-        current: g.current,
-      })),
       recurring: recurring.map((r) => ({
         section: r.section,
         label: r.label,
@@ -579,116 +565,6 @@ export const duplicateMonth = mutation({
     }
 
     return { duplicated: true, count: source.length }
-  },
-})
-
-// ───────────────────────────────────────────────────────────────────────────
-// AVOIR (assets)
-// ───────────────────────────────────────────────────────────────────────────
-
-/** Liste les placements/patrimoine de l'utilisateur (onglet "Avoir"). */
-export const listAssets = query({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await effectiveOwnerOrNull(ctx)
-    if (userId === null) return []
-    const assets = await ctx.db
-      .query('assets')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .collect()
-    assets.sort((a, b) => a.order - b.order)
-    return assets
-  },
-})
-
-/**
- * Enregistre (ou met à jour) le total du patrimoine pour le mois CIVIL en cours,
- * afin de tracer la courbe d'évolution. Appelé après chaque changement de l'Avoir.
- */
-async function snapshotPatrimoine(ctx: MutationCtx, userId: Id<'users'>) {
-  const assets = await ctx.db
-    .query('assets')
-    .withIndex('by_user', (q) => q.eq('userId', userId))
-    .collect()
-  const total = assets.reduce((s, a) => s + a.amount, 0)
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const existing = await ctx.db
-    .query('assetHistory')
-    .withIndex('by_user_year_month', (q) =>
-      q.eq('userId', userId).eq('year', year).eq('month', month),
-    )
-    .unique()
-  if (existing) await ctx.db.patch(existing._id, { total })
-  else await ctx.db.insert('assetHistory', { userId, year, month, total })
-}
-
-/** Historique du patrimoine (un point par mois), trié chronologiquement. */
-export const assetHistory = query({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await effectiveOwnerOrNull(ctx)
-    if (userId === null) return []
-    const hist = await ctx.db
-      .query('assetHistory')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .collect()
-    hist.sort((a, b) => a.year - b.year || a.month - b.month)
-    return hist.map((h) => ({ year: h.year, month: h.month, total: h.total }))
-  },
-})
-
-/** Ajoute un placement. */
-export const addAsset = mutation({
-  args: { label: v.string(), amount: v.optional(v.number()) },
-  handler: async (ctx, { label, amount }) => {
-    const userId = await requireUser(ctx)
-    const existing = await ctx.db
-      .query('assets')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .collect()
-    const nextOrder =
-      existing.reduce((max, a) => Math.max(max, a.order), -1) + 1
-    const id = await ctx.db.insert('assets', {
-      userId,
-      label,
-      amount: amount ?? 0,
-      order: nextOrder,
-    })
-    await snapshotPatrimoine(ctx, userId)
-    return id
-  },
-})
-
-/** Met à jour un placement (libellé et/ou montant). */
-export const updateAsset = mutation({
-  args: {
-    assetId: v.id('assets'),
-    label: v.optional(v.string()),
-    amount: v.optional(v.number()),
-  },
-  handler: async (ctx, { assetId, ...patch }) => {
-    const userId = await requireUser(ctx)
-    const asset = await ctx.db.get(assetId)
-    if (!asset || asset.userId !== userId) throw new Error('Placement introuvable')
-    const fields = Object.fromEntries(
-      Object.entries(patch).filter(([, v]) => v !== undefined),
-    )
-    await ctx.db.patch(assetId, fields)
-    await snapshotPatrimoine(ctx, userId)
-  },
-})
-
-/** Supprime un placement. */
-export const removeAsset = mutation({
-  args: { assetId: v.id('assets') },
-  handler: async (ctx, { assetId }) => {
-    const userId = await requireUser(ctx)
-    const asset = await ctx.db.get(assetId)
-    if (!asset || asset.userId !== userId) throw new Error('Placement introuvable')
-    await ctx.db.delete(assetId)
-    await snapshotPatrimoine(ctx, userId)
   },
 })
 

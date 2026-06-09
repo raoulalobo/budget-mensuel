@@ -11,7 +11,6 @@
 import type * as assistant from "../assistant.js";
 import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
-import type * as goals from "../goals.js";
 import type * as http from "../http.js";
 import type * as recap from "../recap.js";
 import type * as recurring from "../recurring.js";
@@ -31,7 +30,6 @@ declare const fullApi: ApiFromModules<{
   assistant: typeof assistant;
   auth: typeof auth;
   budget: typeof budget;
-  goals: typeof goals;
   http: typeof http;
   recap: typeof recap;
   recurring: typeof recurring;

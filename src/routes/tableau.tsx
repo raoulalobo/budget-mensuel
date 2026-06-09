@@ -54,21 +54,20 @@ export const Route = createFileRoute('/tableau')({
 
 function Dashboard() {
   const months = useQuery(api.budget.listMonths)
-  const assets = useQuery(api.budget.listAssets)
   // Année sélectionnée (hook appelé inconditionnellement, avant tout return).
   const [picked, setPicked] = useState<number | null>(null)
   // Mois sélectionné pour le récap mensuel (null = dernier mois renseigné).
   const [pickedMonth, setPickedMonth] = useState<number | null>(null)
 
   // Tant que les données chargent : esquisse du tableau de bord.
-  if (months === undefined || assets === undefined) {
+  if (months === undefined) {
     return (
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <Skeleton className="h-7 w-64" />
           <Skeleton className="h-9 w-40" />
         </div>
-        <SkeletonStatCards />
+        <SkeletonStatCards count={3} className="grid gap-4 sm:grid-cols-3" />
         <div className="grid gap-6 lg:grid-cols-2">
           <SkeletonChartCard />
           <SkeletonChartCard />
@@ -92,7 +91,6 @@ function Dashboard() {
   const totalIncome = yearMonths.reduce((s, m) => s + m.summary.incomeReal, 0)
   const totalExpense = yearMonths.reduce((s, m) => s + m.summary.expenseReal, 0)
   const totalNet = totalIncome - totalExpense
-  const patrimoine = assets.reduce((s, a) => s + a.amount, 0)
 
   // ── Données du graphique mensuel (1 → 12) ──────────────────────────────────
   const byMonth = new Map(yearMonths.map((m) => [m.month, m.summary]))
@@ -146,7 +144,6 @@ function Dashboard() {
                 income: totalIncome,
                 expense: totalExpense,
                 net: totalNet,
-                assets: patrimoine,
               },
               months: Array.from({ length: 12 }, (_, i) => {
                 const s = byMonth.get(i + 1)
@@ -166,7 +163,7 @@ function Dashboard() {
       </div>
 
       {/* Indicateurs clés */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Kpi label="Revenus (année)" value={totalIncome} color="#16a34a" />
         <Kpi label="Dépenses (année)" value={totalExpense} color="#dc2626" />
         <Kpi
@@ -174,7 +171,6 @@ function Dashboard() {
           value={totalNet}
           color={totalNet >= 0 ? '#16a34a' : '#dc2626'}
         />
-        <Kpi label="Patrimoine (Avoir)" value={patrimoine} color="#7c3aed" />
       </div>
 
       {/* Graphiques principaux */}
@@ -496,8 +492,8 @@ function EmptyState() {
         <h1 className="text-xl font-bold">Bienvenue dans votre budget</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Votre espace est vide. Importez les données de démonstration
-          (Janvier 2025 + patrimoine) pour découvrir l'application, ou
-          commencez à saisir vos propres mois.
+          (Janvier 2025) pour découvrir l'application, ou commencez à saisir vos
+          propres mois.
         </p>
         <div className="mt-6 flex flex-col gap-2">
           <button className="app-btn-primary" onClick={() => void seed({})}>

@@ -14,9 +14,7 @@ import { Route as RecurrentesRouteImport } from './routes/recurrentes'
 import { Route as ProfilRouteImport } from './routes/profil'
 import { Route as PartageRouteImport } from './routes/partage'
 import { Route as MentionsLegalesRouteImport } from './routes/mentions-legales'
-import { Route as EpargneRouteImport } from './routes/epargne'
 import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
-import { Route as AvoirRouteImport } from './routes/avoir'
 import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MoisIndexRouteImport } from './routes/mois.index'
@@ -47,19 +45,9 @@ const MentionsLegalesRoute = MentionsLegalesRouteImport.update({
   path: '/mentions-legales',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EpargneRoute = EpargneRouteImport.update({
-  id: '/epargne',
-  path: '/epargne',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
   id: '/confidentialite',
   path: '/confidentialite',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AvoirRoute = AvoirRouteImport.update({
-  id: '/avoir',
-  path: '/avoir',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssistantRoute = AssistantRouteImport.update({
@@ -86,9 +74,7 @@ const MoisYearMonthRoute = MoisYearMonthRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
-  '/avoir': typeof AvoirRoute
   '/confidentialite': typeof ConfidentialiteRoute
-  '/epargne': typeof EpargneRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/partage': typeof PartageRoute
   '/profil': typeof ProfilRoute
@@ -100,9 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
-  '/avoir': typeof AvoirRoute
   '/confidentialite': typeof ConfidentialiteRoute
-  '/epargne': typeof EpargneRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/partage': typeof PartageRoute
   '/profil': typeof ProfilRoute
@@ -115,9 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/assistant': typeof AssistantRoute
-  '/avoir': typeof AvoirRoute
   '/confidentialite': typeof ConfidentialiteRoute
-  '/epargne': typeof EpargneRoute
   '/mentions-legales': typeof MentionsLegalesRoute
   '/partage': typeof PartageRoute
   '/profil': typeof ProfilRoute
@@ -131,9 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/assistant'
-    | '/avoir'
     | '/confidentialite'
-    | '/epargne'
     | '/mentions-legales'
     | '/partage'
     | '/profil'
@@ -145,9 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/assistant'
-    | '/avoir'
     | '/confidentialite'
-    | '/epargne'
     | '/mentions-legales'
     | '/partage'
     | '/profil'
@@ -159,9 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/assistant'
-    | '/avoir'
     | '/confidentialite'
-    | '/epargne'
     | '/mentions-legales'
     | '/partage'
     | '/profil'
@@ -174,9 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AssistantRoute: typeof AssistantRoute
-  AvoirRoute: typeof AvoirRoute
   ConfidentialiteRoute: typeof ConfidentialiteRoute
-  EpargneRoute: typeof EpargneRoute
   MentionsLegalesRoute: typeof MentionsLegalesRoute
   PartageRoute: typeof PartageRoute
   ProfilRoute: typeof ProfilRoute
@@ -223,25 +197,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MentionsLegalesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/epargne': {
-      id: '/epargne'
-      path: '/epargne'
-      fullPath: '/epargne'
-      preLoaderRoute: typeof EpargneRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/confidentialite': {
       id: '/confidentialite'
       path: '/confidentialite'
       fullPath: '/confidentialite'
       preLoaderRoute: typeof ConfidentialiteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/avoir': {
-      id: '/avoir'
-      path: '/avoir'
-      fullPath: '/avoir'
-      preLoaderRoute: typeof AvoirRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assistant': {
@@ -278,9 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AssistantRoute: AssistantRoute,
-  AvoirRoute: AvoirRoute,
   ConfidentialiteRoute: ConfidentialiteRoute,
-  EpargneRoute: EpargneRoute,
   MentionsLegalesRoute: MentionsLegalesRoute,
   PartageRoute: PartageRoute,
   ProfilRoute: ProfilRoute,

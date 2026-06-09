@@ -62,32 +62,6 @@ export default defineSchema({
     .index('by_receipt', ['receiptId']),
 
   /**
-   * Patrimoine / placements de l'utilisateur (onglet "Avoir").
-   * Exemple : { label: "Livret A", amount: 3000 }.
-   * Montants "instantanés", indépendants d'un mois précis.
-   */
-  assets: defineTable({
-    userId: v.id('users'),
-    label: v.string(),
-    amount: v.number(),
-    order: v.number(),
-  }).index('by_user', ['userId']),
-
-  /**
-   * Historique du patrimoine : un point par (utilisateur, année, mois) = total de
-   * l'« Avoir » à ce moment. Mis à jour automatiquement à chaque changement de
-   * l'Avoir, pour tracer la courbe d'évolution.
-   */
-  assetHistory: defineTable({
-    userId: v.id('users'),
-    year: v.number(),
-    month: v.number(),
-    total: v.number(),
-  })
-    .index('by_user', ['userId'])
-    .index('by_user_year_month', ['userId', 'year', 'month']),
-
-  /**
    * Reçu / justificatif : un fichier image stocké UNE fois (file storage Convex),
    * partagé par toutes les lignes issues d'un même ticket. Les lignes pointent
    * vers ce reçu via `entries.receiptId`. Le fichier n'est supprimé que lorsque
@@ -109,21 +83,6 @@ export default defineSchema({
     section: v.string(),
     label: v.string(),
     amount: v.number(),
-  }).index('by_user', ['userId']),
-
-  /**
-   * Objectifs d'épargne de l'utilisateur.
-   * Exemple : { label: "Fonds d'urgence", target: 5000, current: 1200 }.
-   *  - `target`  : montant visé
-   *  - `current` : montant déjà épargné
-   * La progression (current / target) est calculée côté affichage.
-   */
-  savingsGoals: defineTable({
-    userId: v.id('users'),
-    label: v.string(),
-    target: v.number(),
-    current: v.number(),
-    order: v.number(),
   }).index('by_user', ['userId']),
 
   /**

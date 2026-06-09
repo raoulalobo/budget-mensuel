@@ -81,15 +81,6 @@ export const ask = action({
         ctxText += `  - [${sectionLabel(e.section)}] ${e.label} : prévu ${eur(e.budget)}, réel ${eur(e.real)}\n`
       }
     }
-    if (snap.assets.length > 0) {
-      ctxText += `\n# Patrimoine (Avoir)\n`
-      for (const a of snap.assets) ctxText += `  - ${a.label} : ${eur(a.amount)}\n`
-    }
-    if (snap.goals.length > 0) {
-      ctxText += `\n# Objectifs d'épargne\n`
-      for (const g of snap.goals)
-        ctxText += `  - ${g.label} : ${eur(g.current)} / ${eur(g.target)}\n`
-    }
     if (snap.recurring.length > 0) {
       ctxText += `\n# Lignes récurrentes\n`
       for (const r of snap.recurring)

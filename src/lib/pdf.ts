@@ -108,7 +108,7 @@ export function generateMonthPdf(opts: {
 /** Bilan PDF annuel (mois par mois). */
 export function generateYearPdf(opts: {
   year: number
-  totals: { income: number; expense: number; net: number; assets: number }
+  totals: { income: number; expense: number; net: number }
   months: Array<{ name: string; income: number; expense: number; net: number }>
 }): void {
   const doc = new jsPDF()
@@ -127,7 +127,6 @@ export function generateYearPdf(opts: {
       ['Revenus (année)', formatEUR(opts.totals.income)],
       ['Dépenses (année)', formatEUR(opts.totals.expense)],
       ['Net (année)', formatEUR(opts.totals.net)],
-      ['Patrimoine (Avoir)', formatEUR(opts.totals.assets)],
     ],
     headStyles: { fillColor: ACCENT },
     columnStyles: { 1: { halign: 'right' } },

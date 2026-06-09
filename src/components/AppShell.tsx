@@ -5,10 +5,8 @@ import { useMutation, useQuery } from 'convex/react'
 import {
   LayoutDashboard,
   CalendarDays,
-  PiggyBank,
   Repeat,
   Sparkles,
-  Target,
   Wallet,
   LogOut,
   Sun,
@@ -76,12 +74,6 @@ function Shell({ children }: { children: React.ReactNode }) {
             </NavLink>
             <NavLink to="/mois" icon={<CalendarDays className="h-4 w-4" />}>
               Mois
-            </NavLink>
-            <NavLink to="/avoir" icon={<PiggyBank className="h-4 w-4" />}>
-              Avoir
-            </NavLink>
-            <NavLink to="/epargne" icon={<Target className="h-4 w-4" />}>
-              Épargne
             </NavLink>
             <NavLink to="/recurrentes" icon={<Repeat className="h-4 w-4" />}>
               Modèles

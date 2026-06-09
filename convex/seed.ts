@@ -51,14 +51,6 @@ const JANUARY: Record<Section, SeedLine[]> = {
   saving: [],
 }
 
-// Patrimoine / placements (onglet "Avoir").
-const ASSETS: Array<[label: string, amount: number]> = [
-  ['Assurance-vie', 5000],
-  ['Livret A', 3000],
-  ['PEA', 2000],
-  ['Compte épargne', 1500],
-]
-
 export const seedDemo = mutation({
   args: {},
   handler: async (ctx) => {
@@ -100,12 +92,6 @@ export const seedDemo = mutation({
           })
         }
       }
-    }
-
-    // 3) Seed le patrimoine (Avoir).
-    for (let i = 0; i < ASSETS.length; i++) {
-      const [label, amount] = ASSETS[i]
-      await ctx.db.insert('assets', { userId, label, amount, order: i })
     }
 
     return { seeded: true, months: 12, januaryEntries: true }
