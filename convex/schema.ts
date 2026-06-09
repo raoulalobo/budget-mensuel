@@ -86,6 +86,36 @@ export default defineSchema({
   }).index('by_user', ['userId']),
 
   /**
+   * TABLES OBSOLÈTES (Avoir/Épargne) — fonctionnalités RETIRÉES, données PURGÉES.
+   * Elles restent déclarées (VIDES, inutilisées par aucune fonction ni écran)
+   * car une clé de déploiement ne peut pas droper une table en CI (le contrôle
+   * `tableSize` exige la permission « ViewData », absente des clés de déploiement).
+   * Pour les supprimer pour de bon : `npx convex deploy` depuis une session
+   * authentifiée du propriétaire du projet (et non via une clé de déploiement).
+   */
+  assets: defineTable({
+    userId: v.id('users'),
+    label: v.string(),
+    amount: v.number(),
+    order: v.number(),
+  }).index('by_user', ['userId']),
+  assetHistory: defineTable({
+    userId: v.id('users'),
+    year: v.number(),
+    month: v.number(),
+    total: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_year_month', ['userId', 'year', 'month']),
+  savingsGoals: defineTable({
+    userId: v.id('users'),
+    label: v.string(),
+    target: v.number(),
+    current: v.number(),
+    order: v.number(),
+  }).index('by_user', ['userId']),
+
+  /**
    * ─────────────────────── BUDGET PARTAGÉ ───────────────────────
    *
    * Principe (par délégation, sans migration des données existantes) :
