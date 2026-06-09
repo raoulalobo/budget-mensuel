@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useMutation, useQuery } from 'convex/react'
@@ -45,6 +45,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 function Shell({ children }: { children: React.ReactNode }) {
   const { dark, toggle } = useDarkMode()
   const role = useBudgetRole()
+
+  // Crée les rubriques par défaut au premier accès (idempotent ; seul un
+  // propriétaire/éditeur peut écrire).
+  const ensureDefaults = useMutation(api.sections.ensureDefaults)
+  useEffect(() => {
+    if (role.canEdit) void ensureDefaults()
+  }, [role.canEdit, ensureDefaults])
 
   return (
     <div className="min-h-screen">

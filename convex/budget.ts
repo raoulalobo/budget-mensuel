@@ -3,6 +3,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { effectiveOwnerOrNull, requireWrite } from './sharing'
+import { incomeKeysFor, loadSections, sectionExists } from './sections'
 
 /**
  * Fonctions backend de l'application Budget.
@@ -16,14 +17,9 @@ import { effectiveOwnerOrNull, requireWrite } from './sharing'
  * (= l'utilisateur connecté lorsqu'il regarde son propre budget).
  */
 
-// Validateur réutilisable pour la section d'une ligne de budget.
-const sectionValidator = v.union(
-  v.literal('income'),
-  v.literal('fixed'),
-  v.literal('variable'),
-  v.literal('credit'),
-  v.literal('saving'),
-)
+// Validateur de la clé de rubrique : clé libre (rubriques personnalisables).
+// L'existence de la clé pour le propriétaire est vérifiée dans les mutations.
+const sectionValidator = v.string()
 
 /**
  * Récupère le propriétaire effectif pour une ÉCRITURE : l'espace budget actif.
@@ -38,13 +34,16 @@ async function requireUser(ctx: QueryCtx | MutationCtx): Promise<Id<'users'>> {
  * Calcule le résumé (Revenus / Dépenses / NET, en prévu et réel) d'un jeu de
  * lignes. Dupliqué côté serveur pour pouvoir agréger sans dépendre du front.
  */
-function summarize(entries: Array<Doc<'entries'>>) {
+function summarize(
+  entries: Array<Doc<'entries'>>,
+  incomeKeys: Set<string>,
+) {
   let incomeBudget = 0,
     incomeReal = 0,
     expenseBudget = 0,
     expenseReal = 0
   for (const e of entries) {
-    if (e.section === 'income') {
+    if (incomeKeys.has(e.section)) {
       incomeBudget += e.budget
       incomeReal += e.real
     } else {
@@ -108,13 +107,16 @@ export const listMonths = query({
       .withIndex('by_user_year_month', (q) => q.eq('userId', userId))
       .collect()
 
+    // Clés « Revenu » du propriétaire (chargées une fois) pour le calcul du Net.
+    const income = await incomeKeysFor(ctx, userId)
+
     const withSummary = await Promise.all(
       months.map(async (m) => {
         const entries = await ctx.db
           .query('entries')
           .withIndex('by_month', (q) => q.eq('monthId', m._id))
           .collect()
-        return { ...m, summary: summarize(entries) }
+        return { ...m, summary: summarize(entries, income) }
       }),
     )
 
@@ -149,7 +151,20 @@ export const getMonth = query({
       .collect()
     entries.sort((a, b) => a.order - b.order)
 
-    return { month: monthDoc, entries, summary: summarize(entries) }
+    // Rubriques du propriétaire (libellés/couleurs/kind/ordre) + clés Revenu.
+    const sections = await loadSections(ctx, userId)
+    const income = new Set(
+      sections.filter((s) => s.kind === 'income').map((s) => s.key),
+    )
+    // Repli si pas encore seedé : 'income' compte comme revenu.
+    if (sections.length === 0) income.add('income')
+
+    return {
+      month: monthDoc,
+      entries,
+      summary: summarize(entries, income),
+      sections,
+    }
   },
 })
 
@@ -170,6 +185,15 @@ export const assistantSnapshot = query({
       .collect()
     months.sort((a, b) => a.year - b.year || a.month - b.month)
 
+    // Rubriques : pour le Net (clés Revenu) et les libellés transmis à l'IA.
+    const sectionDocs = await loadSections(ctx, userId)
+    const income = new Set(
+      sectionDocs.filter((s) => s.kind === 'income').map((s) => s.key),
+    )
+    if (sectionDocs.length === 0) income.add('income')
+    const sectionLabels: Record<string, string> = {}
+    for (const s of sectionDocs) sectionLabels[s.key] = s.label
+
     const monthData = []
     for (const m of months) {
       const entries = await ctx.db
@@ -181,7 +205,7 @@ export const assistantSnapshot = query({
       monthData.push({
         year: m.year,
         month: m.month,
-        summary: summarize(entries),
+        summary: summarize(entries, income),
         entries: entries.map((e) => ({
           section: e.section,
           label: e.label,
@@ -206,6 +230,7 @@ export const assistantSnapshot = query({
 
     return {
       months: monthData,
+      sectionLabels,
       assets: assets.map((a) => ({ label: a.label, amount: a.amount })),
       goals: goals.map((g) => ({
         label: g.label,
@@ -262,6 +287,9 @@ export const addEntry = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx)
     await getOwnedMonth(ctx, userId, args.monthId)
+    if (!(await sectionExists(ctx, userId, args.section))) {
+      throw new Error('Rubrique inconnue')
+    }
 
     // Place la nouvelle ligne après la dernière de sa section.
     const sameSection = await ctx.db
@@ -434,6 +462,11 @@ export const importEntries = mutation({
     const userId = await requireUser(ctx)
     await getOwnedMonth(ctx, userId, monthId)
 
+    // Clés de rubrique valides du propriétaire (on ignore les lignes orphelines).
+    const validKeys = new Set(
+      (await loadSections(ctx, userId)).map((s) => s.key),
+    )
+
     // Remplacement éventuel : on vide le mois d'abord.
     if (replace) {
       const old = await ctx.db
@@ -458,7 +491,10 @@ export const importEntries = mutation({
       }
     }
 
+    let imported = 0
     for (const e of entries) {
+      // On ignore les lignes pointant vers une rubrique inexistante.
+      if (!validKeys.has(e.section)) continue
       const next = (orderBySection.get(e.section) ?? -1) + 1
       orderBySection.set(e.section, next)
       await ctx.db.insert('entries', {
@@ -471,9 +507,10 @@ export const importEntries = mutation({
         order: next,
         receiptId: e.receiptId,
       })
+      imported++
     }
 
-    return { imported: entries.length }
+    return { imported }
   },
 })
 
@@ -664,6 +701,8 @@ export const yearExpenseBreakdown = query({
   handler: async (ctx, { year }) => {
     const userId = await effectiveOwnerOrNull(ctx)
     if (userId === null) return []
+    // Clés « Revenu » à exclure de la répartition des dépenses.
+    const income = await incomeKeysFor(ctx, userId)
     const months = await ctx.db
       .query('months')
       .withIndex('by_user_year_month', (q) =>
@@ -677,7 +716,7 @@ export const yearExpenseBreakdown = query({
         .withIndex('by_month', (q) => q.eq('monthId', m._id))
         .collect()
       for (const e of entries) {
-        if (e.section === 'income') continue
+        if (income.has(e.section)) continue
         totals[e.section] = (totals[e.section] ?? 0) + e.real
       }
     }

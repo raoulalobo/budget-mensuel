@@ -9,37 +9,13 @@
  * utilisé partout (composants, tests, seed...).
  */
 
-/** Les 4 grandes sections de dépenses + l'épargne, dans l'ordre d'affichage. */
-export const SECTIONS = [
-  'income',
-  'fixed',
-  'variable',
-  'credit',
-  'saving',
-] as const
-
-export type Section = (typeof SECTIONS)[number]
-
-/** Libellé humain (FR) de chaque section. */
-export const SECTION_LABELS: Record<Section, string> = {
-  income: 'Revenus',
-  fixed: 'Dépenses fixes',
-  variable: 'Dépenses variables',
-  credit: 'Crédits',
-  saving: 'Épargne',
-}
-
-/** Couleur d'accent associée à chaque section (utilisée par les graphiques). */
-export const SECTION_COLORS: Record<Section, string> = {
-  income: '#16a34a', // vert  — entrées d'argent
-  fixed: '#2563eb', // bleu   — charges récurrentes
-  variable: '#f59e0b', // ambre — dépenses pilotables
-  credit: '#dc2626', // rouge  — crédits
-  saving: '#7c3aed', // violet — épargne
-}
-
-/** Les sections considérées comme des "sorties d'argent" (dépenses). */
-export const EXPENSE_SECTIONS: Section[] = ['fixed', 'variable', 'credit', 'saving']
+/**
+ * Clé d'une RUBRIQUE (section). Les rubriques sont désormais DYNAMIQUES
+ * (personnalisables par l'utilisateur) : la clé est une simple chaîne. Les
+ * libellés / couleurs / type (Revenu vs Dépense) sont fournis par la table
+ * `sections` (cf. `src/lib/useSections.ts` côté client).
+ */
+export type Section = string
 
 /** Noms des 12 mois en français, indexés de 1 (Janvier) à 12 (Décembre). */
 export const MONTH_NAMES = [

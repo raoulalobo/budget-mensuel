@@ -197,12 +197,14 @@ export const deleteAccount = mutation({
       await ctx.db.delete(r._id)
     }
 
-    // Avoir, historique, lignes récurrentes, objectifs d'épargne (index by_user).
+    // Avoir, historique, lignes récurrentes, objectifs d'épargne, rubriques
+    // (toutes indexées par `by_user`).
     for (const table of [
       'assets',
       'assetHistory',
       'recurringLines',
       'savingsGoals',
+      'sections',
     ] as const) {
       const rows = await ctx.db
         .query(table)

@@ -9,6 +9,7 @@ import {
   Copy,
   FileDown,
   Info,
+  Loader2,
   Paperclip,
   Plus,
   Repeat,
@@ -17,18 +18,12 @@ import {
   StickyNote,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import {
-  EXPENSE_SECTIONS,
-  SECTION_COLORS,
-  SECTION_LABELS,
-  SECTIONS,
-  formatEUR,
-  monthName,
-  type Section,
-} from '../lib/budget'
+import { formatEUR, monthName } from '../lib/budget'
+import { type SectionDef } from '../lib/useSections'
 import { generateMonthPdf } from '../lib/pdf'
 import { useBudgetRole } from '../lib/budgetRole'
 import SummaryCards from './SummaryCards'
@@ -71,6 +66,7 @@ export default function MonthView({
   const [importOpen, setImportOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
   const [recapOpen, setRecapOpen] = useState(false)
+  const [addSectionOpen, setAddSectionOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
@@ -112,16 +108,16 @@ export default function MonthView({
     setTimeout(() => setNotice(null), 4000)
   }
 
-  /** Génère le bilan PDF du mois courant. */
+  /** Génère le bilan PDF du mois courant (rubriques dynamiques). */
   function handleExportPdf() {
     if (!data) return
     generateMonthPdf({
       title: `${monthName(month)} ${year}`,
       summary: data.summary,
-      sections: SECTIONS.map((section) => ({
-        label: SECTION_LABELS[section],
+      sections: data.sections.map((section) => ({
+        label: section.label,
         rows: data.entries
-          .filter((e) => e.section === section)
+          .filter((e) => e.section === section.key)
           .map((e) => ({ label: e.label, budget: e.budget, real: e.real })),
       })),
     })
@@ -222,8 +218,12 @@ export default function MonthView({
             ambre résume le nombre de postes concernés et le dépassement cumulé.
           */}
           {(() => {
+            // Clés de rubrique « Dépense » (pour repérer les dépassements).
+            const expenseKeys = new Set(
+              data.sections.filter((s) => s.kind === 'expense').map((s) => s.key),
+            )
             const overspent = data.entries.filter(
-              (e) => EXPENSE_SECTIONS.includes(e.section) && e.real > e.budget,
+              (e) => expenseKeys.has(e.section) && e.real > e.budget,
             )
             if (overspent.length === 0) return null
             const total = overspent.reduce((s, e) => s + (e.real - e.budget), 0)
@@ -275,20 +275,33 @@ export default function MonthView({
             />
           </div>
 
-          {/* Une carte par section (filtrée par la recherche). */}
+          {/* Une carte par RUBRIQUE (dynamique, filtrée par la recherche). */}
           <div className="grid gap-6">
-            {SECTIONS.map((section) => (
+            {data.sections.map((section) => (
               <SectionCard
-                key={section}
+                key={section.key}
                 section={section}
                 monthId={data.month._id}
                 canEdit={canEdit}
                 entries={data.entries
-                  .filter((e) => e.section === section)
+                  .filter((e) => e.section === section.key)
                   .filter((e) => matchSearch(e, search))}
               />
             ))}
           </div>
+
+          {/* Création d'une nouvelle rubrique (écriture). */}
+          {canEdit && (
+            <button
+              className="app-btn-ghost w-full justify-center border border-dashed border-border py-3"
+              onClick={() => setAddSectionOpen(true)}
+            >
+              <Plus className="h-4 w-4" /> Nouvelle rubrique
+            </button>
+          )}
+          {addSectionOpen && (
+            <AddSectionDialog onClose={() => setAddSectionOpen(false)} />
+          )}
 
           {/* Dialogue d'import CSV */}
           {importOpen && (
@@ -353,7 +366,7 @@ interface Entry {
   label: string
   budget: number
   real: number
-  section: Section
+  section: string
   note?: string
   receiptId?: Id<'receipts'>
   tags?: string[]
@@ -378,7 +391,7 @@ function SectionCard({
   entries,
   canEdit,
 }: {
-  section: Section
+  section: SectionDef
   monthId: Id<'months'>
   entries: Entry[]
   canEdit: boolean
@@ -388,6 +401,8 @@ function SectionCard({
   const selected = entries.find((e) => e._id === selectedId) ?? null
   // Modale d'ajout d'une ligne.
   const [addOpen, setAddOpen] = useState(false)
+  // Confirmation de suppression de la rubrique.
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   // Sous-totaux de la section.
   const totals = entries.reduce(
@@ -395,27 +410,37 @@ function SectionCard({
     { budget: 0, real: 0 },
   )
   // Pour les dépenses on calcule l'écart budget − réel (positif = économie).
-  const isExpense = EXPENSE_SECTIONS.includes(section)
+  const isExpense = section.kind === 'expense'
 
   return (
     <section className="app-card overflow-hidden">
-      {/* En-tête de section avec pastille de couleur */}
+      {/* En-tête de rubrique avec pastille de couleur */}
       <header
         className="flex items-center gap-2 border-b border-border px-4 py-3"
-        style={{ borderLeft: `4px solid ${SECTION_COLORS[section]}` }}
+        style={{ borderLeft: `4px solid ${section.color}` }}
       >
         <span
           className="app-badge"
           style={{
-            backgroundColor: `${SECTION_COLORS[section]}1a`,
-            color: SECTION_COLORS[section],
+            backgroundColor: `${section.color}1a`,
+            color: section.color,
           }}
         >
-          {SECTION_LABELS[section]}
+          {section.label}
         </span>
         <span className="ml-auto text-sm text-muted-foreground">
           {entries.length} ligne{entries.length > 1 ? 's' : ''}
         </span>
+        {/* Suppression d'une rubrique non par défaut (écriture). */}
+        {canEdit && !section.builtin && (
+          <button
+            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            title="Supprimer cette rubrique"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </header>
 
       {/* Tableau */}
@@ -454,7 +479,7 @@ function SectionCard({
           </tbody>
           <tfoot>
             <tr className="border-t border-border font-semibold">
-              <td className="px-4 py-2">Total {SECTION_LABELS[section]}</td>
+              <td className="px-4 py-2">Total {section.label}</td>
               <td className="px-4 py-2 text-right tabular-nums">
                 {formatEUR(totals.budget)}
               </td>
@@ -482,17 +507,30 @@ function SectionCard({
         </div>
       )}
 
-      {/* Détail de la ligne sélectionnée */}
+      {/* Détail de la ligne sélectionnée (libellé/couleur de rubrique passés). */}
       {selected && (
-        <EntryDetailDialog entry={selected} onClose={() => setSelectedId(null)} />
+        <EntryDetailDialog
+          entry={selected}
+          sectionLabel={section.label}
+          sectionColor={section.color}
+          onClose={() => setSelectedId(null)}
+        />
       )}
 
-      {/* Modale d'ajout d'une ligne */}
+      {/* Modale d'ajout d'une ligne (rubrique courante). */}
       {addOpen && (
         <AddEntryDialog
           monthId={monthId}
           section={section}
           onClose={() => setAddOpen(false)}
+        />
+      )}
+
+      {/* Confirmation de suppression de la rubrique (+ ses lignes). */}
+      {deleteOpen && (
+        <DeleteSectionDialog
+          section={section}
+          onClose={() => setDeleteOpen(false)}
         />
       )}
     </section>
@@ -642,6 +680,156 @@ function AmountInput({
       onChange={(e) => onChange(e.target.value)}
       onBlur={() => onCommit(Number(value) || 0)}
     />
+  )
+}
+
+/**
+ * Modale de création d'une RUBRIQUE : nom + type (Revenu / Dépense).
+ * Les colonnes (prévu/réel/écart) sont les mêmes pour toutes les rubriques.
+ */
+function AddSectionDialog({ onClose }: { onClose: () => void }) {
+  const createSection = useMutation(api.sections.createSection)
+  const [label, setLabel] = useState('')
+  const [kind, setKind] = useState<'income' | 'expense'>('expense')
+  const [busy, setBusy] = useState(false)
+
+  async function handleCreate() {
+    const name = label.trim()
+    if (!name) return
+    setBusy(true)
+    try {
+      await createSection({ label: name, kind })
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div className="app-card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-semibold">Nouvelle rubrique</h2>
+          <button className="app-btn-ghost px-2" onClick={onClose} title="Fermer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <label className="block text-sm font-medium">Nom</label>
+        <input
+          autoFocus
+          className="app-input mt-1"
+          placeholder="Ex. Loisirs, Revenus locatifs…"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+
+        <p className="mt-4 text-sm font-medium">Type</p>
+        <div className="mt-1 flex gap-2">
+          {(['expense', 'income'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKind(k)}
+              className={
+                kind === k
+                  ? 'app-btn flex-1 bg-accent text-accent-foreground'
+                  : 'app-btn-ghost flex-1 border border-border'
+              }
+            >
+              {k === 'expense' ? 'Dépense' : 'Revenu'}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Le type sert au calcul du Net (Revenus − Dépenses).
+        </p>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="app-btn-ghost" onClick={onClose} disabled={busy}>
+            Annuler
+          </button>
+          <button
+            className="app-btn-primary"
+            onClick={() => void handleCreate()}
+            disabled={busy || !label.trim()}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Créer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Confirmation de SUPPRESSION d'une rubrique : indique le nombre de lignes/mois
+ * impactés (irréversible — supprime aussi les lignes et les modèles récurrents).
+ */
+function DeleteSectionDialog({
+  section,
+  onClose,
+}: {
+  section: SectionDef
+  onClose: () => void
+}) {
+  const usage = useQuery(api.sections.sectionUsage, { key: section.key })
+  const removeSection = useMutation(api.sections.removeSection)
+  const [busy, setBusy] = useState(false)
+
+  async function handleDelete() {
+    setBusy(true)
+    try {
+      await removeSection({ id: section._id })
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div className="app-card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <h2 className="font-semibold">Supprimer « {section.label} » ?</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {usage === undefined ? (
+            'Vérification des lignes concernées…'
+          ) : usage.lines > 0 ? (
+            <>
+              Cette rubrique contient <strong>{usage.lines} ligne(s)</strong> dans{' '}
+              <strong>{usage.months} mois</strong>. Elles seront{' '}
+              <strong>définitivement supprimées</strong> (ainsi que les modèles
+              récurrents associés).
+            </>
+          ) : (
+            'Cette rubrique ne contient aucune ligne. Action définitive.'
+          )}
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="app-btn-ghost" onClick={onClose} disabled={busy}>
+            Annuler
+          </button>
+          <button
+            className="app-btn-danger"
+            onClick={() => void handleDelete()}
+            disabled={busy}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Supprimer définitivement
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

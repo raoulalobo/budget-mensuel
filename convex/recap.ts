@@ -18,14 +18,6 @@ import { api } from './_generated/api'
  *  - DEEPSEEK_BASE_URL (optionnel, défaut "https://api.deepseek.com")
  */
 
-const SECTION_LABELS: Record<string, string> = {
-  income: 'Revenus',
-  fixed: 'Dépenses fixes',
-  variable: 'Dépenses variables',
-  credit: 'Crédits',
-  saving: 'Épargne',
-}
-const SECTION_ORDER = ['income', 'fixed', 'variable', 'credit', 'saving']
 const MONTHS = [
   '',
   'Janvier',
@@ -80,12 +72,13 @@ export const monthlyRecap = action({
     const s = data.summary
     let dataText = `Mois : ${MONTHS[month]} ${year}\n`
     dataText += `Revenus réels : ${eur(s.incomeReal)} | Dépenses réelles : ${eur(s.expenseReal)} | NET : ${eur(s.netReal)} (net prévu : ${eur(s.netBudget)})\n`
-    for (const section of SECTION_ORDER) {
-      const items = data.entries.filter((e: any) => e.section === section)
+    // Parcourt les rubriques du mois (dynamiques) dans leur ordre d'affichage.
+    for (const section of data.sections) {
+      const items = data.entries.filter((e: any) => e.section === section.key)
       if (items.length === 0) continue
       const tb = items.reduce((acc: number, e: any) => acc + e.budget, 0)
       const tr = items.reduce((acc: number, e: any) => acc + e.real, 0)
-      dataText += `\n## ${SECTION_LABELS[section]} — prévu ${eur(tb)}, réel ${eur(tr)}\n`
+      dataText += `\n## ${section.label} — prévu ${eur(tb)}, réel ${eur(tr)}\n`
       for (const e of items) {
         dataText += `- ${e.label} : prévu ${eur(e.budget)}, réel ${eur(e.real)}\n`
       }

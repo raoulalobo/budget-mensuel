@@ -3,6 +3,7 @@ import { mutation, query } from './_generated/server'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { effectiveOwnerOrNull, requireWrite } from './sharing'
+import { sectionExists } from './sections'
 
 /**
  * Lignes récurrentes : modèles de lignes (loyer, abonnements, salaire…) que
@@ -11,13 +12,9 @@ import { effectiveOwnerOrNull, requireWrite } from './sharing'
  * l'espace actif (écriture bloquée pour les lecteurs via `requireWrite`).
  */
 
-const sectionValidator = v.union(
-  v.literal('income'),
-  v.literal('fixed'),
-  v.literal('variable'),
-  v.literal('credit'),
-  v.literal('saving'),
-)
+// Clé de rubrique : clé libre (rubriques personnalisables) ; existence vérifiée
+// dans les mutations.
+const sectionValidator = v.string()
 
 /** Propriétaire effectif pour une écriture (lève une erreur si lecteur). */
 async function requireUser(ctx: QueryCtx | MutationCtx): Promise<Id<'users'>> {
@@ -46,6 +43,9 @@ export const addRecurring = mutation({
   },
   handler: async (ctx, { section, label, amount }) => {
     const userId = await requireUser(ctx)
+    if (!(await sectionExists(ctx, userId, section))) {
+      throw new Error('Rubrique inconnue')
+    }
     return await ctx.db.insert('recurringLines', {
       userId,
       section,
@@ -67,6 +67,9 @@ export const updateRecurring = mutation({
     const userId = await requireUser(ctx)
     const doc = await ctx.db.get(id)
     if (!doc || doc.userId !== userId) throw new Error('Ligne récurrente introuvable')
+    if (patch.section !== undefined && !(await sectionExists(ctx, userId, patch.section))) {
+      throw new Error('Rubrique inconnue')
+    }
     const fields = Object.fromEntries(
       Object.entries(patch).filter(([, v]) => v !== undefined),
     )

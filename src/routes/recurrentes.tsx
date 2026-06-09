@@ -4,8 +4,8 @@ import { useMutation, useQuery } from 'convex/react'
 import { Plus, Trash2, Repeat } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { SECTIONS, SECTION_LABELS, type Section } from '../lib/budget'
 import { useBudgetRole } from '../lib/budgetRole'
+import { useSections } from '../lib/useSections'
 import { SkeletonTableRows } from '../components/Skeleton'
 
 /**
@@ -22,18 +22,26 @@ function RecurringPage() {
   const addRecurring = useMutation(api.recurring.addRecurring)
   // Droit d'écriture sur l'espace budget actif (faux pour un lecteur invité).
   const { canEdit } = useBudgetRole()
+  const { sections } = useSections()
 
-  const [section, setSection] = useState<Section>('fixed')
+  const [section, setSection] = useState<string>('')
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
+
+  // Rubrique sélectionnée : choix explicite, sinon la première rubrique.
+  const selectedSection = section || sections[0]?.key || ''
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     const l = label.trim()
-    if (!l) return
+    if (!l || !selectedSection) return
     setLabel('')
     setAmount('')
-    await addRecurring({ section, label: l, amount: Number(amount) || 0 })
+    await addRecurring({
+      section: selectedSection,
+      label: l,
+      amount: Number(amount) || 0,
+    })
   }
 
   return (
@@ -52,15 +60,15 @@ function RecurringPage() {
       {canEdit && (
       <form onSubmit={handleAdd} className="app-card flex flex-wrap items-end gap-2 p-4">
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Section</label>
+          <label className="text-xs text-muted-foreground">Rubrique</label>
           <select
             className="app-input"
-            value={section}
-            onChange={(e) => setSection(e.target.value as Section)}
+            value={selectedSection}
+            onChange={(e) => setSection(e.target.value)}
           >
-            {SECTIONS.map((s) => (
-              <option key={s} value={s}>
-                {SECTION_LABELS[s]}
+            {sections.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -123,16 +131,17 @@ function RecurringPage() {
   )
 }
 
-/** Une ligne récurrente éditable (section / libellé / montant), commit au blur. */
+/** Une ligne récurrente éditable (rubrique / libellé / montant), commit au blur. */
 function RecurringRow({
   item,
   canEdit,
 }: {
-  item: { _id: Id<'recurringLines'>; section: Section; label: string; amount: number }
+  item: { _id: Id<'recurringLines'>; section: string; label: string; amount: number }
   canEdit: boolean
 }) {
   const updateRecurring = useMutation(api.recurring.updateRecurring)
   const removeRecurring = useMutation(api.recurring.removeRecurring)
+  const { sections } = useSections()
   const [label, setLabel] = useState(item.label)
   const [amount, setAmount] = useState(String(item.amount))
 
@@ -144,12 +153,12 @@ function RecurringRow({
           value={item.section}
           disabled={!canEdit}
           onChange={(e) =>
-            void updateRecurring({ id: item._id, section: e.target.value as Section })
+            void updateRecurring({ id: item._id, section: e.target.value })
           }
         >
-          {SECTIONS.map((s) => (
-            <option key={s} value={s}>
-              {SECTION_LABELS[s]}
+          {sections.map((s) => (
+            <option key={s.key} value={s.key}>
+              {s.label}
             </option>
           ))}
         </select>

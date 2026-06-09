@@ -25,13 +25,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
-import {
-  EXPENSE_SECTIONS,
-  SECTION_COLORS,
-  SECTION_LABELS,
-  formatEUR,
-  monthName,
-} from '../lib/budget'
+import { formatEUR, monthName } from '../lib/budget'
+import { useSections } from '../lib/useSections'
 import { generateYearPdf } from '../lib/pdf'
 import YearSelector from '../components/YearSelector'
 import SummaryCards from '../components/SummaryCards'
@@ -257,10 +252,14 @@ function MonthlyDashboard({
 }) {
   const data = useQuery(api.budget.getMonth, { year, month })
 
+  // Clés de rubrique « Dépense » du mois (rubriques dynamiques).
+  const expenseKeys = new Set(
+    (data?.sections ?? []).filter((s) => s.kind === 'expense').map((s) => s.key),
+  )
   // Lignes de dépense dont le réel dépasse le prévu (pour l'alerte).
   const overspent =
     data?.entries.filter(
-      (e) => EXPENSE_SECTIONS.includes(e.section) && e.real > e.budget,
+      (e) => expenseKeys.has(e.section) && e.real > e.budget,
     ) ?? []
   const overTotal = overspent.reduce((s, e) => s + (e.real - e.budget), 0)
 
@@ -361,13 +360,13 @@ function MonthlyDashboard({
  */
 function YearExpenseBreakdown({ year }: { year: number }) {
   const data = useQuery(api.budget.yearExpenseBreakdown, { year })
+  const sec = useSections()
   if (!data) return null
   const slices = data
     .map((d) => ({
-      name: SECTION_LABELS[d.section as keyof typeof SECTION_LABELS] ?? d.section,
+      name: sec.label(d.section),
       value: round(d.total),
-      color:
-        SECTION_COLORS[d.section as keyof typeof SECTION_COLORS] ?? '#888',
+      color: sec.color(d.section),
     }))
     .filter((s) => s.value > 0)
   if (slices.length === 0) return null
@@ -406,16 +405,19 @@ function ExpenseBreakdown({ year, month }: { year: number; month: number }) {
   const data = useQuery(api.budget.getMonth, { year, month })
   if (!data) return null
 
-  // Total réel par section de dépense.
-  const slices = EXPENSE_SECTIONS.map((section) => ({
-    name: SECTION_LABELS[section],
-    value: round(
-      data.entries
-        .filter((e) => e.section === section)
-        .reduce((s, e) => s + e.real, 0),
-    ),
-    color: SECTION_COLORS[section],
-  })).filter((s) => s.value > 0)
+  // Total réel par rubrique de DÉPENSE (rubriques dynamiques du mois).
+  const slices = data.sections
+    .filter((s) => s.kind === 'expense')
+    .map((section) => ({
+      name: section.label,
+      value: round(
+        data.entries
+          .filter((e) => e.section === section.key)
+          .reduce((s, e) => s + e.real, 0),
+      ),
+      color: section.color,
+    }))
+    .filter((s) => s.value > 0)
 
   if (slices.length === 0) return null
 

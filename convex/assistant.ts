@@ -16,13 +16,6 @@ import { api } from './_generated/api'
  * DEEPSEEK_BASE_URL optionnels) — mêmes que le récap IA.
  */
 
-const SECTION_LABELS: Record<string, string> = {
-  income: 'Revenus',
-  fixed: 'Dépenses fixes',
-  variable: 'Dépenses variables',
-  credit: 'Crédits',
-  saving: 'Épargne',
-}
 const MONTHS = [
   '',
   'Janvier',
@@ -77,12 +70,15 @@ export const ask = action({
     const eur = (n: number) =>
       `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 
+    // Libellés de rubriques (dynamiques) ; repli sur la clé si inconnu.
+    const sectionLabel = (key: string) => snap.sectionLabels[key] ?? key
+
     // Contexte textuel compact à partir de l'instantané.
     let ctxText = "DONNÉES BUDGÉTAIRES DE L'UTILISATEUR (montants en euros) :\n"
     for (const m of snap.months) {
       ctxText += `\n# ${MONTHS[m.month]} ${m.year} — Revenus ${eur(m.summary.incomeReal)}, Dépenses ${eur(m.summary.expenseReal)}, Net ${eur(m.summary.netReal)}\n`
       for (const e of m.entries) {
-        ctxText += `  - [${SECTION_LABELS[e.section]}] ${e.label} : prévu ${eur(e.budget)}, réel ${eur(e.real)}\n`
+        ctxText += `  - [${sectionLabel(e.section)}] ${e.label} : prévu ${eur(e.budget)}, réel ${eur(e.real)}\n`
       }
     }
     if (snap.assets.length > 0) {
@@ -97,7 +93,7 @@ export const ask = action({
     if (snap.recurring.length > 0) {
       ctxText += `\n# Lignes récurrentes\n`
       for (const r of snap.recurring)
-        ctxText += `  - [${SECTION_LABELS[r.section]}] ${r.label} : ${eur(r.amount)}\n`
+        ctxText += `  - [${sectionLabel(r.section)}] ${r.label} : ${eur(r.amount)}\n`
     }
 
     const system = `Tu es l'assistant budgétaire personnel de l'utilisateur, francophone, bienveillant et concret.

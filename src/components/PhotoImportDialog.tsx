@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { SECTIONS, SECTION_LABELS, type Section } from '../lib/budget'
+import { useSections } from '../lib/useSections'
 import { downscaleImage } from '../lib/image'
 import { uploadImageDataUrl } from '../lib/upload'
 
@@ -52,7 +52,7 @@ function computeConcurrency(n: number): number {
 
 // Une ligne éditable de l'aperçu (montant en string pour une saisie fluide).
 interface EditableRow {
-  section: Section
+  section: string
   label: string
   amount: string
   sourceSeq?: number // photo d'origine (pour rattacher l'image stockée)
@@ -80,6 +80,14 @@ export default function PhotoImportDialog({
   const importEntries = useMutation(api.budget.importEntries)
   const generateUploadUrl = useMutation(api.budget.generateUploadUrl)
   const createReceipt = useMutation(api.budget.createReceipt)
+  const { sections } = useSections()
+
+  // Rubrique de repli : 1re dépense, sinon 1re rubrique.
+  const fallbackKey =
+    sections.find((s) => s.kind === 'expense')?.key ?? sections[0]?.key ?? ''
+  // Mappe une clé détectée par l'IA vers une rubrique existante (sinon repli).
+  const resolveKey = (key: string) =>
+    sections.some((s) => s.key === key) ? key : fallbackKey
 
   const seqRef = useRef(0) // compteur stable pour numéroter les photos
   const [images, setImages] = useState<PendingImage[]>([])
@@ -144,7 +152,7 @@ export default function PhotoImportDialog({
           setRows((rs) => [
             ...rs,
             ...res.rows.map((r) => ({
-              section: r.section as Section,
+              section: resolveKey(r.section),
               label: r.label,
               amount: String(r.budget),
               sourceSeq: img.seq,
@@ -195,7 +203,7 @@ export default function PhotoImportDialog({
     setRows((rs) => rs.filter((_, idx) => idx !== i))
   }
   function addRow() {
-    setRows((rs) => [...rs, { section: 'variable', label: '', amount: '0' }])
+    setRows((rs) => [...rs, { section: fallbackKey, label: '', amount: '0' }])
   }
 
   // Lignes conservées (libellé non vide), avec leur lien photo (sourceSeq).
@@ -382,7 +390,7 @@ export default function PhotoImportDialog({
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                        <th className="px-3 py-2 font-medium">Section</th>
+                        <th className="px-3 py-2 font-medium">Rubrique</th>
                         <th className="px-3 py-2 font-medium">Libellé</th>
                         <th className="w-32 px-3 py-2 text-right font-medium">
                           Montant
@@ -398,12 +406,12 @@ export default function PhotoImportDialog({
                               className="w-full rounded border border-input bg-background px-1.5 py-1 outline-none focus:ring-2 focus:ring-ring"
                               value={row.section}
                               onChange={(e) =>
-                                updateRow(i, { section: e.target.value as Section })
+                                updateRow(i, { section: e.target.value })
                               }
                             >
-                              {SECTIONS.map((s) => (
-                                <option key={s} value={s}>
-                                  {SECTION_LABELS[s]}
+                              {sections.map((s) => (
+                                <option key={s.key} value={s.key}>
+                                  {s.label}
                                 </option>
                               ))}
                             </select>

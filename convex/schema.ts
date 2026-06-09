@@ -41,13 +41,10 @@ export default defineSchema({
   entries: defineTable({
     userId: v.id('users'),
     monthId: v.id('months'),
-    section: v.union(
-      v.literal('income'),
-      v.literal('fixed'),
-      v.literal('variable'),
-      v.literal('credit'),
-      v.literal('saving'),
-    ),
+    // Clé de la RUBRIQUE (cf. table `sections`). Historiquement une des valeurs
+    // 'income'/'fixed'/'variable'/'credit'/'saving' ; désormais une clé libre
+    // (rubriques personnalisables) — d'où `v.string()`.
+    section: v.string(),
     label: v.string(),
     budget: v.number(),
     real: v.number(),
@@ -107,13 +104,9 @@ export default defineSchema({
    */
   recurringLines: defineTable({
     userId: v.id('users'),
-    section: v.union(
-      v.literal('income'),
-      v.literal('fixed'),
-      v.literal('variable'),
-      v.literal('credit'),
-      v.literal('saving'),
-    ),
+    // Clé de rubrique (cf. table `sections`) — clé libre depuis les rubriques
+    // personnalisables.
+    section: v.string(),
     label: v.string(),
     amount: v.number(),
   }).index('by_user', ['userId']),
@@ -197,4 +190,25 @@ export default defineSchema({
     userId: v.id('users'),
     avatarId: v.optional(v.id('_storage')),
   }).index('by_user', ['userId']),
+
+  /**
+   * RUBRIQUES (sections) personnalisables, par propriétaire d'espace budget.
+   *
+   * Chaque rubrique décrit une clé (`key`) stockée dans `entries.section` /
+   * `recurringLines.section`. `kind` indique si elle compte comme Revenu ou
+   * Dépense (pour le calcul du Net). `builtin` marque les rubriques par défaut
+   * non supprimables (Revenus + Dépenses fixes). `order` = ordre d'affichage.
+   * Exemple : { userId, key:'income', label:'Revenus', kind:'income', builtin:true }.
+   */
+  sections: defineTable({
+    userId: v.id('users'),
+    key: v.string(),
+    label: v.string(),
+    color: v.string(),
+    kind: v.union(v.literal('income'), v.literal('expense')),
+    order: v.number(),
+    builtin: v.boolean(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_user_key', ['userId', 'key']),
 })

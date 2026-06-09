@@ -15,6 +15,7 @@ import type * as goals from "../goals.js";
 import type * as http from "../http.js";
 import type * as recap from "../recap.js";
 import type * as recurring from "../recurring.js";
+import type * as sections from "../sections.js";
 import type * as seed from "../seed.js";
 import type * as sharing from "../sharing.js";
 import type * as users from "../users.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   recap: typeof recap;
   recurring: typeof recurring;
+  sections: typeof sections;
   seed: typeof seed;
   sharing: typeof sharing;
   users: typeof users;

@@ -11,12 +11,8 @@ import {
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import {
-  SECTION_COLORS,
-  SECTION_LABELS,
-  formatEUR,
-  type Section,
-} from '../lib/budget'
+import { formatEUR } from '../lib/budget'
+import { type SectionDef } from '../lib/useSections'
 import { downscaleImage } from '../lib/image'
 import { uploadImageDataUrl } from '../lib/upload'
 import { useSpeechToText } from '../lib/speech'
@@ -35,7 +31,7 @@ export default function AddEntryDialog({
   onClose,
 }: {
   monthId: Id<'months'>
-  section: Section
+  section: SectionDef
   onClose: () => void
 }) {
   const addEntry = useMutation(api.budget.addEntry)
@@ -138,7 +134,7 @@ export default function AddEntryDialog({
         .filter(Boolean)
       await addEntry({
         monthId,
-        section,
+        section: section.key,
         label: trimmed,
         budget: Number(budget) || 0,
         real: Number(real) || 0,
@@ -167,11 +163,11 @@ export default function AddEntryDialog({
             <span
               className="app-badge"
               style={{
-                backgroundColor: `${SECTION_COLORS[section]}1a`,
-                color: SECTION_COLORS[section],
+                backgroundColor: `${section.color}1a`,
+                color: section.color,
               }}
             >
-              {SECTION_LABELS[section]}
+              {section.label}
             </span>
             <h2 className="font-semibold">Nouvelle ligne</h2>
           </div>

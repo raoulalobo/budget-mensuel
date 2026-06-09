@@ -44,11 +44,17 @@ export function parseAmount(raw: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
+/** Une rubrique connue (pour matcher une colonne « Section » d'un CSV). */
+export interface SectionRef {
+  key: string
+  label: string
+}
+
 /**
- * Table de correspondance des noms de section (FR/EN, accents et casse ignorés)
- * vers nos clés internes.
+ * Alias historiques (FR/EN) vers les clés des rubriques par défaut. Sert de
+ * repli quand le nom du CSV ne correspond pas exactement à un libellé existant.
  */
-const SECTION_ALIASES: Record<string, Section> = {
+const SECTION_ALIASES: Record<string, string> = {
   revenus: 'income',
   revenu: 'income',
   salaire: 'income',
@@ -68,14 +74,29 @@ const SECTION_ALIASES: Record<string, Section> = {
   savings: 'saving',
 }
 
-/** Normalise un libellé de section (minuscule, sans accent ni espace) pour le matcher. */
-function normalizeSection(raw: string): Section | null {
-  const key = raw
+/** Normalise une chaîne (minuscule, sans accent ni caractère non alphanumérique). */
+function norm(raw: string): string {
+  return raw
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // retire les accents (diacritiques combinants)
-    .replace(/[^a-z]/g, '') // garde uniquement les lettres
-  return SECTION_ALIASES[key] ?? null
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * Résout un nom de section vers une clé de rubrique : d'abord par correspondance
+ * exacte avec le LIBELLÉ d'une rubrique existante (ou sa clé), sinon via les
+ * alias standard (en vérifiant que la clé existe parmi les rubriques fournies).
+ */
+function normalizeSection(raw: string, sections: SectionRef[]): string | null {
+  const n = norm(raw)
+  if (!n) return null
+  for (const s of sections) {
+    if (norm(s.label) === n || norm(s.key) === n) return s.key
+  }
+  const alias = SECTION_ALIASES[n]
+  if (alias && sections.some((s) => s.key === alias)) return alias
+  return null
 }
 
 /** Choisit le séparateur d'une ligne : tabulation > point-virgule > virgule. */
@@ -94,7 +115,8 @@ function detectDelimiter(line: string): string {
  */
 export function parseBudgetCsv(
   text: string,
-  forcedSection?: Section,
+  forcedSection?: string,
+  sections: SectionRef[] = [],
 ): ParseResult {
   const rows: ParsedEntry[] = []
   const errors: string[] = []
@@ -119,7 +141,7 @@ export function parseBudgetCsv(
       return
     }
 
-    let section: Section | null
+    let section: string | null
     let label: string
     let budgetCell: string | undefined
     let realCell: string | undefined
@@ -132,7 +154,7 @@ export function parseBudgetCsv(
       realCell = cells[2]
     } else {
       // Format 4 colonnes : Section ; Libellé ; Prévu ; Réel
-      section = normalizeSection(cells[0] ?? '')
+      section = normalizeSection(cells[0] ?? '', sections)
       label = cells[1] ?? ''
       budgetCell = cells[2]
       realCell = cells[3]

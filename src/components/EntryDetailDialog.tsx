@@ -13,12 +13,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import {
-  SECTION_COLORS,
-  SECTION_LABELS,
-  formatEUR,
-  type Section,
-} from '../lib/budget'
+import { formatEUR, type Section } from '../lib/budget'
 import { downscaleImage } from '../lib/image'
 import { uploadImageDataUrl } from '../lib/upload'
 import { useSpeechToText } from '../lib/speech'
@@ -45,9 +40,13 @@ export interface DetailEntry {
  */
 export default function EntryDetailDialog({
   entry,
+  sectionLabel,
+  sectionColor,
   onClose,
 }: {
   entry: DetailEntry
+  sectionLabel: string
+  sectionColor: string
   onClose: () => void
 }) {
   const updateEntry = useMutation(api.budget.updateEntry)
@@ -207,11 +206,11 @@ export default function EntryDetailDialog({
             <span
               className="app-badge"
               style={{
-                backgroundColor: `${SECTION_COLORS[entry.section]}1a`,
-                color: SECTION_COLORS[entry.section],
+                backgroundColor: `${sectionColor}1a`,
+                color: sectionColor,
               }}
             >
-              {SECTION_LABELS[entry.section]}
+              {sectionLabel}
             </span>
             <h2 className="font-semibold">{entry.label || '(sans libellé)'}</h2>
           </div>

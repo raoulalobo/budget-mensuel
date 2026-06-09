@@ -3,7 +3,7 @@ import { useMutation } from 'convex/react'
 import { X, Upload, FileUp } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { SECTION_LABELS, SECTIONS, type Section } from '../lib/budget'
+import { useSections } from '../lib/useSections'
 import { parseBudgetCsv } from '../lib/csv'
 
 /**
@@ -26,15 +26,17 @@ export default function ImportDialog({
   onClose: () => void
 }) {
   const importEntries = useMutation(api.budget.importEntries)
+  const { sections } = useSections()
   const [text, setText] = useState('')
-  const [forced, setForced] = useState<'auto' | Section>('auto')
+  const [forced, setForced] = useState<'auto' | string>('auto')
   const [replace, setReplace] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  // Parse en direct le texte saisi pour l'aperçu.
+  // Parse en direct le texte saisi pour l'aperçu (rubriques dynamiques).
   const parsed = useMemo(
-    () => parseBudgetCsv(text, forced === 'auto' ? undefined : forced),
-    [text, forced],
+    () =>
+      parseBudgetCsv(text, forced === 'auto' ? undefined : forced, sections),
+    [text, forced, sections],
   )
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -80,16 +82,16 @@ export default function ImportDialog({
         <div className="flex flex-col gap-4 overflow-y-auto p-5">
           {/* Choix de la section */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Section cible</label>
+            <label className="text-sm font-medium">Rubrique cible</label>
             <select
               className="app-input"
               value={forced}
-              onChange={(e) => setForced(e.target.value as 'auto' | Section)}
+              onChange={(e) => setForced(e.target.value)}
             >
-              <option value="auto">Auto (section en 1re colonne)</option>
-              {SECTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {SECTION_LABELS[s]}
+              <option value="auto">Auto (rubrique en 1re colonne)</option>
+              {sections.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
                 </option>
               ))}
             </select>
