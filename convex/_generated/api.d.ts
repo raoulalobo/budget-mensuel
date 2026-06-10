@@ -12,6 +12,7 @@ import type * as assistant from "../assistant.js";
 import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
 import type * as http from "../http.js";
+import type * as importMapping from "../importMapping.js";
 import type * as recap from "../recap.js";
 import type * as recurring from "../recurring.js";
 import type * as sections from "../sections.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   budget: typeof budget;
   http: typeof http;
+  importMapping: typeof importMapping;
   recap: typeof recap;
   recurring: typeof recurring;
   sections: typeof sections;

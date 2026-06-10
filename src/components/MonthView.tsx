@@ -28,7 +28,7 @@ import { generateMonthPdf } from '../lib/pdf'
 import { useBudgetRole } from '../lib/budgetRole'
 import SummaryCards from './SummaryCards'
 import { Skeleton, SkeletonStatCards } from './Skeleton'
-import ImportDialog from './ImportDialog'
+import SmartImportDialog from './SmartImportDialog'
 import PhotoImportDialog from './PhotoImportDialog'
 import EntryDetailDialog from './EntryDetailDialog'
 import AddEntryDialog from './AddEntryDialog'
@@ -178,7 +178,7 @@ export default function MonthView({
             {canEdit && (
               <>
                 <button className="app-btn-ghost" onClick={() => setImportOpen(true)}>
-                  <Upload className="h-4 w-4" /> Importer CSV
+                  <Upload className="h-4 w-4" /> Importer un fichier
                 </button>
                 <button className="app-btn-ghost" onClick={() => setPhotoOpen(true)}>
                   <Camera className="h-4 w-4" /> Importer par photo
@@ -303,9 +303,9 @@ export default function MonthView({
             <AddSectionDialog onClose={() => setAddSectionOpen(false)} />
           )}
 
-          {/* Dialogue d'import CSV */}
+          {/* Dialogue d'import intelligent (xls/xlsx/csv + agent IA) */}
           {importOpen && (
-            <ImportDialog
+            <SmartImportDialog
               monthId={data.month._id}
               monthLabel={`${monthName(month)} ${year}`}
               onClose={() => setImportOpen(false)}
