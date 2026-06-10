@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Eraser,
   FileDown,
   Info,
   Loader2,
@@ -403,6 +404,8 @@ function SectionCard({
   const [addOpen, setAddOpen] = useState(false)
   // Confirmation de suppression de la rubrique.
   const [deleteOpen, setDeleteOpen] = useState(false)
+  // Confirmation de vidage des lignes de la rubrique (ce mois uniquement).
+  const [clearOpen, setClearOpen] = useState(false)
 
   // Sous-totaux de la section.
   const totals = entries.reduce(
@@ -431,6 +434,18 @@ function SectionCard({
         <span className="ml-auto text-sm text-muted-foreground">
           {entries.length} ligne{entries.length > 1 ? 's' : ''}
         </span>
+        {/* Vidage des lignes de la rubrique pour CE mois (écriture).
+            Disponible aussi sur les rubriques par défaut, contrairement à la
+            suppression de rubrique ci-dessous. */}
+        {canEdit && entries.length > 0 && (
+          <button
+            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            title="Vider les lignes de cette rubrique pour ce mois"
+            onClick={() => setClearOpen(true)}
+          >
+            <Eraser className="h-4 w-4" />
+          </button>
+        )}
         {/* Suppression d'une rubrique non par défaut (écriture). */}
         {canEdit && !section.builtin && (
           <button
@@ -531,6 +546,16 @@ function SectionCard({
         <DeleteSectionDialog
           section={section}
           onClose={() => setDeleteOpen(false)}
+        />
+      )}
+
+      {/* Confirmation de vidage des lignes de la rubrique (ce mois). */}
+      {clearOpen && (
+        <ClearSectionDialog
+          section={section}
+          monthId={monthId}
+          count={entries.length}
+          onClose={() => setClearOpen(false)}
         />
       )}
     </section>
@@ -826,6 +851,70 @@ function DeleteSectionDialog({
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             Supprimer définitivement
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Confirmation de VIDAGE d'une rubrique pour le mois courant : supprime toutes
+ * les lignes de la section dans CE mois uniquement (mutation
+ * `budget.clearSectionEntries`). La rubrique elle-même et ses lignes des autres
+ * mois sont conservées — à ne pas confondre avec `DeleteSectionDialog`.
+ */
+function ClearSectionDialog({
+  section,
+  monthId,
+  count,
+  onClose,
+}: {
+  section: SectionDef
+  monthId: Id<'months'>
+  count: number
+  onClose: () => void
+}) {
+  const clearSection = useMutation(api.budget.clearSectionEntries)
+  const [busy, setBusy] = useState(false)
+
+  async function handleClear() {
+    setBusy(true)
+    try {
+      await clearSection({ monthId, section: section.key })
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div className="app-card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <h2 className="font-semibold">Vider « {section.label} » ?</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Les <strong>{count} ligne{count > 1 ? 's' : ''}</strong> de cette
+          rubrique pour ce mois seront{' '}
+          <strong>définitivement supprimée{count > 1 ? 's' : ''}</strong>. Les
+          autres mois ne sont pas affectés.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="app-btn-ghost" onClick={onClose} disabled={busy}>
+            Annuler
+          </button>
+          <button
+            className="app-btn-danger"
+            onClick={() => void handleClear()}
+            disabled={busy}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
+            Vider
           </button>
         </div>
       </div>

@@ -380,6 +380,47 @@ export const removeEntry = mutation({
 })
 
 /**
+ * Vide une rubrique dans UN mois : supprime toutes les lignes de la section
+ * donnée pour ce mois uniquement (les autres mois ne sont pas affectés).
+ *
+ * Les reçus des lignes supprimées sont nettoyés via `maybeDeleteReceipt`
+ * (comptage de références : un reçu encore partagé par une ligne d'un autre
+ * mois est conservé). Renvoie le nombre de lignes supprimées.
+ */
+export const clearSectionEntries = mutation({
+  args: {
+    monthId: v.id('months'),
+    section: sectionValidator,
+  },
+  handler: async (ctx, { monthId, section }) => {
+    const userId = await requireUser(ctx)
+    await getOwnedMonth(ctx, userId, monthId)
+
+    // Lignes de cette rubrique dans ce mois (index dédié).
+    const entries = await ctx.db
+      .query('entries')
+      .withIndex('by_month_section', (q) =>
+        q.eq('monthId', monthId).eq('section', section),
+      )
+      .collect()
+
+    // Supprime les lignes en mémorisant les reçus rencontrés (dédupliqués).
+    const receiptIds = new Set<Id<'receipts'>>()
+    for (const e of entries) {
+      if (e.receiptId) receiptIds.add(e.receiptId)
+      await ctx.db.delete(e._id)
+    }
+    // Nettoyage des reçus APRÈS suppression des lignes : le comptage de
+    // références de `maybeDeleteReceipt` ne voit plus les lignes supprimées.
+    for (const receiptId of receiptIds) {
+      await maybeDeleteReceipt(ctx, userId, receiptId)
+    }
+
+    return { removed: entries.length }
+  },
+})
+
+/**
  * Génère une URL d'upload signée (file storage Convex). Le client y envoie le
  * fichier (POST) et reçoit un `storageId`, qu'il transforme ensuite en reçu via
  * `createReceipt`.
