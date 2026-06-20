@@ -15,6 +15,7 @@ import {
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { useSections } from '../lib/useSections'
+import DateField from './DateField'
 import { parseFileToTable, type RawTable } from '../lib/smartImport/parseFile'
 import { applyMapping } from '../lib/smartImport/applyMapping'
 import type {
@@ -694,11 +695,12 @@ export default function SmartImportDialog({
                             />
                           </td>
                           <td className="px-2 py-1.5">
-                            <input
-                              type="date"
-                              className="w-full rounded bg-transparent px-1 py-1 outline-none focus:bg-background"
+                            <DateField
+                              size="compact"
                               value={row.date}
-                              onChange={(e) => updateRow(i, { date: e.target.value })}
+                              onChange={(v) => updateRow(i, { date: v })}
+                              clearable
+                              placeholder="—"
                             />
                           </td>
                           <td className="px-2 py-1.5 text-center">

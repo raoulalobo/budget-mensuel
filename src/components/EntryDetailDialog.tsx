@@ -18,6 +18,7 @@ import { useCurrency } from '../lib/useCurrency'
 import { downscaleImage } from '../lib/image'
 import { uploadImageDataUrl } from '../lib/upload'
 import { useSpeechToText } from '../lib/speech'
+import DateField from './DateField'
 
 /** Ligne telle que fournie par getMonth (sous-ensemble utilisé ici). */
 export interface DetailEntry {
@@ -371,29 +372,15 @@ export default function EntryDetailDialog({
           {/* Date (optionnelle) de la dépense/revenu */}
           <div className="rounded-md border border-border p-3">
             <span className="mb-2 block text-sm font-medium">Date</span>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                className="app-input"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value)
-                  handleSaveDate(e.target.value)
-                }}
-              />
-              {date && (
-                <button
-                  className="app-btn-ghost px-2 text-xs"
-                  onClick={() => {
-                    setDate('')
-                    handleSaveDate('')
-                  }}
-                  title="Effacer la date"
-                >
-                  Effacer
-                </button>
-              )}
-            </div>
+            <DateField
+              value={date}
+              onChange={(v) => {
+                setDate(v)
+                handleSaveDate(v)
+              }}
+              clearable
+              placeholder="Aucune date"
+            />
           </div>
 
           {/* Tags (séparés par des virgules) */}

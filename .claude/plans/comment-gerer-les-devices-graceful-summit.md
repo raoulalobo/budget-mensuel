@@ -1,127 +1,98 @@
-# Plan — Date optionnelle sur les lignes de budget (dépenses / revenus)
+# Plan — Date picker soigné (shadcn : Radix Popover + react-day-picker)
 
 ## Context
 
-L'app est un **planificateur budgétaire mensuel** : chaque ligne `entries` est un
-poste avec un montant prévu (`budget`) et réel (`real`) pour **tout le mois**. La
-granularité temporelle est le mois (`months.year/month`) ; les lignes sont triées
-par `order` (ordre manuel). **Aucune date** n'existe au niveau de la ligne.
+On vient d'ajouter une date optionnelle sur les lignes de budget, saisie via des
+`<input type="date">` natifs (4 emplacements). Le rendu natif est disgracieux,
+surtout en **dark mode** (aucun `color-scheme` déclaré → widget/icône/pop-up au
+thème système) et incohérent d'un navigateur à l'autre.
 
-Problème soulevé : une date est un élément essentiel pour les dépenses/revenus
-ponctuels. Constat clé : l'**import photo** (`convex/vision.ts`) *détecte déjà* la
-date du ticket/facture mais la perd dans la `note` (texte libre).
+Objectif : remplacer ces inputs natifs par un **date picker au design soigné**,
+identique sur tous navigateurs et en dark mode. Choix validé : **approche shadcn/ui**
+(Radix Popover + `react-day-picker`), naturelle ici car le projet est **déjà câblé
+shadcn** : tokens CSS `oklch` (`--popover`, `--primary`, `--accent`, `--ring`,
+`--radius`), `@theme inline`, util `cn` (`src/lib/utils.ts`), `class-variance-authority`,
+et `tw-animate-css` déjà importé (`src/styles.css:5`). Intégration ≈ zéro travail de thème.
 
-**Décisions retenues (validées) :**
-- **Date OPTIONNELLE par ligne** (métadonnée) — on garde le modèle mensuel intact ;
-  les lignes fixes peuvent rester sans date, les ponctuelles en ont une.
-- **Format date complète `YYYY-MM-DD`** (stockage ISO, triable, gère le cas rare
-  d'une dépense du mois voisin).
-- Usages : **tri/affichage chronologique**, **auto-remplissage à l'import photo**,
-  **filtre/recherche par date**, **contexte IA** (récap + assistant).
+## Dépendances à ajouter
+`react-day-picker` (v9), `@radix-ui/react-popover` (v1), `date-fns` (locale `fr`).
+(Déjà présents : `lucide-react`, `clsx`, `tailwind-merge`, `class-variance-authority`.)
 
-Aucune migration : champ optionnel ⇒ les lignes existantes restent valides (sans date).
+## Composants à créer
 
-## Modifications
+### `src/components/ui/popover.tsx`
+Fin wrapper Radix : `Popover`, `PopoverTrigger`, `PopoverContent`. Le `Content`
+porte le style thème : `bg-popover text-popover-foreground rounded-md border shadow-md
+p-0 outline-none` + animations `data-[state=...]` (classes `tw-animate-css`) + un
+**z-index supérieur aux modales** (`z-[60]` : les modales `AddEntryDialog`/
+`EntryDetailDialog` sont en `z-50` ; le contenu est portalisé sur `<body>`).
 
-### 1. Schéma — `convex/schema.ts`
-Ajouter à `entries` un champ optionnel :
-```ts
-// Date de la dépense/revenu au format ISO 'YYYY-MM-DD'. Optionnel : les lignes
-// agrégées/fixes (loyer…) peuvent ne pas en avoir. Pas d'index : le filtre/tri
-// se fait en mémoire sur les lignes déjà chargées d'un mois (faible volume).
-date: v.optional(v.string()),
-```
-Pas de nouvel index nécessaire (`getMonth` charge déjà toutes les lignes d'un mois,
-volume faible → tri/filtre en mémoire côté client).
+### `src/components/ui/calendar.tsx`
+`DayPicker` (react-day-picker v9) configuré :
+- `locale={fr}` (date-fns), `weekStartsOn={1}` (lundi), `showOutsideDays`.
+- Chevrons via `components` avec `ChevronLeft`/`ChevronRight` de `lucide-react`.
+- `classNames` mappés sur les tokens (équivalent du `calendar.tsx` shadcn adapté
+  v4/v9) : jour sélectionné `bg-primary text-primary-foreground`, aujourd'hui
+  `bg-accent text-accent-foreground`, survol `hover:bg-accent`, jours hors-mois
+  `text-muted-foreground opacity-50`, caption/nav lisibles. Tout via `cn`.
 
-### 2. Helpers date — `src/lib/budget.ts` et `src/lib/csv.ts`
-- `src/lib/budget.ts` : `formatDate(iso?: string)` → `"15/01/2025"` via
-  `Intl.DateTimeFormat('fr-FR')` (repli `''` si absent/invalide), à côté de
-  `formatMoney`. Et `isValidISODate(s)` (regex `^\d{4}-\d{2}-\d{2}$` + `Date` valide).
-- `src/lib/csv.ts` : `parseDate(raw: string): string | undefined` — convertit
-  `"15/01/2025"`, `"2025-01-15"`, `"15-01-25"`… en ISO `YYYY-MM-DD` (repli `undefined`
-  si illisible), pendant équivalent de `parseAmount`.
+### `src/components/DateField.tsx` (champ partagé, l'API consommée par l'app)
+Props : `{ value?: string /* ISO YYYY-MM-DD */, onChange: (iso: string) => void,
+placeholder?: string, disabled?: boolean, clearable?: boolean, size?: 'default' | 'compact',
+className?: string }`.
+- **Trigger** : un `<button>` stylé comme `app-input` (taille `default`) ou compact
+  (pour les cellules de tableau) ; affiche `formatDate(value)` (helper existant
+  `src/lib/budget.ts`) ou le `placeholder` en `text-muted-foreground`, + icône
+  `CalendarDays` à droite ; en `clearable` avec valeur, une croix `X` efface
+  (`onChange('')`) sans ouvrir le calendrier.
+- **Contenu** : `<Calendar mode="single" selected={value ? new Date(value+'T12:00:00') : undefined}
+  onSelect={(d) => { onChange(d ? isoFromDate(d) : ''); setOpen(false) }} defaultMonth=…/>`.
+- Conversion sûre au fuseau (cohérent avec les helpers existants) : lecture à **midi**,
+  écriture via composantes **locales**.
 
-### 3. Mutations — `convex/budget.ts`
-- `addEntry` : ajouter l'arg `date: v.optional(v.string())`, le valider
-  (`isValidISODate` côté serveur, sinon ignorer), et le stocker.
-- `updateEntry` : ajouter `date: v.optional(v.union(v.string(), v.null()))`.
-  Nuance importante : le handler filtre déjà les `undefined` ; pour **effacer** une
-  date il faut accepter `null` et le convertir en `date: undefined` dans le patch
-  (sinon la date ne peut jamais être retirée).
-- `importEntries` : ajouter `date: v.optional(v.string())` dans l'objet `entries[]`
-  et le propager à l'`insert`.
-- `duplicateMonth` : **ne PAS copier** `date` (une date de janvier n'a pas de sens
-  en février — même logique que `resetReal`).
-- `applyRecurring` (`convex/recurring.ts`) : inchangé (lignes récurrentes sans date).
+### Helper — `src/lib/budget.ts`
+Ajouter `isoFromDate(d: Date): string` (→ `YYYY-MM-DD` à partir de
+`getFullYear/getMonth/getDate`, sans `toISOString`/UTC). Réutiliser `formatDate`
+pour l'affichage. (`isValidISODate` déjà corrigé pour le fuseau.)
 
-### 4. Import photo (date détectée) — `convex/vision.ts`
-- Prompt : demander un champ `date` ISO `YYYY-MM-DD` au niveau `summary` (date du
-  document) **et** par ligne `entries[].date` quand le document en porte plusieurs
-  (ex. relevé bancaire) ; n'inventer aucune date.
-- Étendre l'interface `Summary` avec `date?: string` et `ExtractedRow` avec
-  `date?: string` ; parser/valider (réutiliser une validation ISO), repli sur la
-  date du document. Renvoyer ces dates.
-- Flux mono-ligne (`AddEntryDialog`) : pré-remplir le champ date depuis `summary.date`.
-- Flux multi-lignes (`PhotoImportDialog`) : appliquer la date de chaque ligne
-  (ou la date document) aux lignes éditables, puis la passer à `importEntries`.
+## Câblage (remplacer les 4 `<input type="date">`)
+- `src/components/AddEntryDialog.tsx` : `<DateField value={date} onChange={setDate}
+  clearable placeholder="Choisir une date" />`.
+- `src/components/EntryDetailDialog.tsx` : `<DateField value={date}
+  onChange={(v) => { setDate(v); handleSaveDate(v) }} clearable placeholder="Aucune date" />`
+  — le bouton « Effacer » manuel est replié dans `clearable` (suppression du bloc).
+- `src/components/SmartImportDialog.tsx` et `PhotoImportDialog.tsx` (cellule Date de
+  l'aperçu) : `<DateField size="compact" value={row.date}
+  onChange={(v) => updateRow(i, { date: v })} clearable />`.
 
-### 5. Import CSV/Excel — `src/lib/smartImport/*` + `src/lib/csv.ts`
-- `types.ts` : `ImportMapping` reçoit `dateColumn?: number` ; `ParsedEntry` (csv.ts)
-  reçoit `date?: string`.
-- `applyMapping.ts` : si `dateColumn` défini, lire la cellule et la convertir via
-  `parseDate` ; poser `date` sur la ligne produite.
-- `SmartImportDialog.tsx` : permettre de mapper une colonne date (mode manuel) et
-  l'afficher dans l'aperçu éditable. (Détection auto par l'IA de mapping :
-  amélioration optionnelle, hors périmètre initial — mapping manuel suffit.)
+Aucun changement de données : `DateField` émet toujours une chaîne ISO (ou `''`),
+exactement ce que consomment déjà les états/mutations.
 
-### 6. UI saisie & affichage
-- `AddEntryDialog.tsx` : ajouter un `<input type="date">` optionnel. Recevoir le
-  contexte mois (year/month) depuis `SectionCard`/`MonthView` pour proposer un
-  défaut cohérent (jour courant si le mois affiché = mois en cours, sinon vide) et
-  le passer à `addEntry`.
-- `EntryDetailDialog.tsx` : champ date éditable (sauvegarde au blur comme `note`/
-  `tags`, via `updateEntry`) + bouton « effacer » (envoie `date: null`).
-- `MonthView.tsx` :
-  - `EntryRow` : afficher la date si présente (puce compacte dans la cellule POSTE,
-    via `formatDate`).
-  - `matchSearch` (l.~377) : inclure la date (ISO + formatée) dans le texte cherché
-    pour filtrer par « 15/01 » ou « 2025-01 ».
-  - Ajouter une bascule de tri « par ordre / par date » (tri en mémoire sur les
-    lignes déjà chargées ; `order` reste le défaut).
-
-### 7. Contexte IA — `convex/recap.ts` & `convex/assistant.ts`
-Quand une ligne a une `date`, l'inclure dans le texte fourni à l'IA, ex. :
-`- [section] label (15/01) : prévu X, réel Y`. Petit ajout dans les boucles qui
-construisent `dataText`/`ctxText`.
-
-## Fichiers principaux
-- `convex/schema.ts`, `convex/budget.ts`, `convex/vision.ts`, `convex/recap.ts`,
-  `convex/assistant.ts`
-- `src/lib/budget.ts`, `src/lib/csv.ts`, `src/lib/smartImport/types.ts`,
-  `src/lib/smartImport/applyMapping.ts`
-- `src/components/AddEntryDialog.tsx`, `EntryDetailDialog.tsx`, `MonthView.tsx`,
-  `SmartImportDialog.tsx`, `PhotoImportDialog.tsx`
-
-## Notes / cas limites
-- **Effacement** : `updateEntry` doit accepter `null` pour vraiment retirer la date
-  (le filtre `undefined` existant empêcherait l'effacement).
-- **Hors-mois** : on n'impose PAS que la date tombe dans le mois (choix assumé :
-  une dépense du mois voisin reste autorisée). Validation = format ISO valide.
-- **Pas d'index** : volumes par mois faibles ; tri/filtre en mémoire — pas de
-  `by_month_date` pour l'instant (à ajouter seulement si besoin de perf futur).
-- **Rétrocompat** : lignes sans date → affichage neutre (pas de puce), tri par date
-  les place après celles datées (ou avant, à fixer : `date ?? ''`).
+## Notes / points d'attention
+- **SSR (TanStack Start)** : Radix Popover + react-day-picker sont sûrs en SSR
+  (contenu portalisé seulement à l'ouverture) ; le trigger rend côté serveur.
+- **z-index dans les modales** : le popover doit passer **au-dessus** des modales
+  `z-50` → `z-[60]`. Le portail body évite que le clic dans le calendrier ferme la
+  modale (overlay séparé), comportement à vérifier en e2e.
+- **Layers CSS** (cf. mémoire « piège cascade CSS layers ») : styles via classes
+  utilitaires Tailwind ; vérifier le rendu dark mode et qu'aucune règle `a {}`/non-
+  layerisée n'écrase le popover.
+- **i18n** : `date-fns/locale` `fr` (mois/jours en français, lundi en tête).
+- Le `color-scheme` natif devient sans objet (plus d'input natif) ; on peut tout de
+  même garder une base saine, mais ce n'est plus le sujet.
 
 ## Vérification (e2e, app lancée — cf. mémoire « tester-features-en-vrai »)
-1. Démarrer l'app (Convex local 3212/3213 + `npm run dev`, cf. mémoire stack).
-2. **Saisie** : ajouter une dépense avec une date → la date s'affiche dans la ligne ;
-   l'éditer/effacer via la modale détail.
-3. **Tri/filtre** : basculer le tri « par date » ; rechercher « 15/01 » filtre bien.
-4. **Import photo** : importer un ticket daté → la date détectée pré-remplit le champ
-   (vérifier qu'elle n'est plus seulement dans la note).
-5. **Import CSV** : mapper une colonne date → dates présentes dans l'aperçu et après
-   import.
-6. **IA** : générer un récap → les dates apparaissent dans le raisonnement quand utiles.
-7. **Rétrocompat** : un mois existant (lignes sans date) s'affiche normalement.
-8. `npx tsc --noEmit` (0 erreur sur les fichiers touchés) + `npm test`.
+1. Démarrer l'app (Convex local 3212/3213 + `npm run dev`).
+2. **AddEntryDialog** : ouvrir, cliquer le champ date → popover calendrier **en
+   français, lundi en tête**, au thème (clair) ; choisir un jour → la date formatée
+   s'affiche dans le trigger ; la croix efface.
+3. **Dark mode** : basculer le thème → calendrier/popup correctement sombres
+   (plus de rendu natif système).
+4. **EntryDetailDialog** : même picker, sauvegarde au choix, effacement OK ; le
+   popover s'affiche au-dessus de la modale.
+5. **Imports** (`SmartImportDialog`, `PhotoImportDialog`) : picker **compact** dans
+   la cellule, sélection répercutée dans l'aperçu puis à l'import.
+6. **Rétrocompat** : lignes sans date → trigger affiche le placeholder ; lignes
+   datées existantes → date correcte.
+7. `npx tsc --noEmit` (0 erreur sur les fichiers touchés), `npm test`, et un
+   `npm run build` (vérifie le bundling SSR des nouvelles libs).
