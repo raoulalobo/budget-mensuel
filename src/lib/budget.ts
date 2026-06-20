@@ -129,6 +129,19 @@ export function formatDate(iso?: string): string {
   return dateFormatter.format(new Date(`${iso}T12:00:00`))
 }
 
+/**
+ * Convertit un objet `Date` en date ISO `YYYY-MM-DD` à partir de ses composantes
+ * LOCALES (pas `toISOString`/UTC, qui décalerait d'un jour selon le fuseau).
+ * Pendant inverse de `formatDate`/`new Date(iso+'T12:00:00')`.
+ * Exemple : isoFromDate(new Date(2025, 0, 15)) => "2025-01-15".
+ */
+export function isoFromDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 /** Forme minimale d'une ligne de budget pour les calculs (sous-ensemble du doc Convex). */
 export interface EntryLike {
   section: Section

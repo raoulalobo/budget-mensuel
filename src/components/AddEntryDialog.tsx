@@ -16,6 +16,7 @@ import { type SectionDef } from '../lib/useSections'
 import { downscaleImage } from '../lib/image'
 import { uploadImageDataUrl } from '../lib/upload'
 import { useSpeechToText } from '../lib/speech'
+import DateField from './DateField'
 
 /**
  * Fenêtre modale d'AJOUT d'une ligne de budget.
@@ -246,11 +247,11 @@ export default function AddEntryDialog({
           {/* Date (optionnelle) de la dépense/revenu */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">Date (facultative)</label>
-            <input
-              type="date"
-              className="app-input"
+            <DateField
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
+              clearable
+              placeholder="Choisir une date"
             />
           </div>
 
