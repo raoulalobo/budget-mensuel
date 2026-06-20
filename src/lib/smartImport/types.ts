@@ -83,6 +83,12 @@ export interface ImportMapping {
   /** Colonne du montant RÉEL (null si absente du fichier). */
   realColumn: number | null
   /**
+   * Colonne de la DATE de la ligne (null si absente). La valeur est convertie en
+   * ISO 'YYYY-MM-DD' par `parseDate` ; les cellules illisibles donnent une ligne
+   * sans date (champ optionnel).
+   */
+  dateColumn?: number | null
+  /**
    * Si le fichier n'a qu'UNE colonne de montant : où la verser.
    * 'both' = prévu ET réel (convention de l'app : réel absent → réel = prévu).
    */

@@ -29,6 +29,7 @@ export interface DetailEntry {
   note?: string
   receiptId?: Id<'receipts'>
   tags?: string[]
+  date?: string
 }
 
 /**
@@ -62,6 +63,8 @@ export default function EntryDetailDialog({
 
   const [note, setNote] = useState(entry.note ?? '')
   const [tags, setTags] = useState((entry.tags ?? []).join(', '))
+  // Date éditable (ISO 'YYYY-MM-DD' ; vide = aucune date).
+  const [date, setDate] = useState(entry.date ?? '')
   const [savingNote, setSavingNote] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
@@ -88,6 +91,13 @@ export default function EntryDetailDialog({
     } finally {
       setSavingNote(false)
     }
+  }
+
+  // Date : commit immédiat. Une chaîne vide envoie `null` pour effacer la date
+  // (le serveur retire alors le champ).
+  function handleSaveDate(value: string) {
+    if (value === (entry.date ?? '')) return
+    void updateEntry({ entryId: entry._id, date: value === '' ? null : value })
   }
 
   // Tags : commit au blur si la liste a changé.
@@ -356,6 +366,34 @@ export default function EntryDetailDialog({
             {speech.listening && (
               <p className="mt-1 text-xs text-destructive">🎙️ Écoute en cours…</p>
             )}
+          </div>
+
+          {/* Date (optionnelle) de la dépense/revenu */}
+          <div className="rounded-md border border-border p-3">
+            <span className="mb-2 block text-sm font-medium">Date</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                className="app-input"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value)
+                  handleSaveDate(e.target.value)
+                }}
+              />
+              {date && (
+                <button
+                  className="app-btn-ghost px-2 text-xs"
+                  onClick={() => {
+                    setDate('')
+                    handleSaveDate('')
+                  }}
+                  title="Effacer la date"
+                >
+                  Effacer
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Tags (séparés par des virgules) */}

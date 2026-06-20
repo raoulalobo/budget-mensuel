@@ -22,6 +22,20 @@ import { incomeKeysFor, loadSections, sectionExists } from './sections'
 const sectionValidator = v.string()
 
 /**
+ * Normalise une date de ligne : ne garde qu'une date ISO `YYYY-MM-DD` réellement
+ * valide, sinon `undefined` (on ne stocke jamais de date malformée).
+ * Dupliqué côté serveur (convex n'importe pas `src/lib/budget.ts`, cf. vision.ts).
+ * Exemple : sanitizeDate('2025-02-30') => undefined ; sanitizeDate('2025-01-15') => '2025-01-15'.
+ */
+function sanitizeDate(s: string | undefined): string | undefined {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined
+  const d = new Date(`${s}T12:00:00`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+    ? s
+    : undefined
+}
+
+/**
  * Récupère le propriétaire effectif pour une ÉCRITURE : l'espace budget actif.
  * Lève une erreur si non authentifié ou si l'utilisateur est en lecture seule.
  * (Conserve le nom `requireUser` : tous les call sites d'écriture l'utilisent.)
@@ -211,6 +225,7 @@ export const assistantSnapshot = query({
           label: e.label,
           budget: e.budget,
           real: e.real,
+          date: e.date,
         })),
       })
     }
@@ -269,6 +284,8 @@ export const addEntry = mutation({
     note: v.optional(v.string()),
     receiptId: v.optional(v.id('receipts')),
     tags: v.optional(v.array(v.string())),
+    // Date optionnelle de la dépense/revenu (ISO 'YYYY-MM-DD').
+    date: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx)
@@ -298,6 +315,7 @@ export const addEntry = mutation({
       note: args.note,
       receiptId: args.receiptId,
       tags: args.tags,
+      date: sanitizeDate(args.date),
     })
   },
 })
@@ -339,16 +357,23 @@ export const updateEntry = mutation({
     note: v.optional(v.string()),
     receiptId: v.optional(v.id('receipts')),
     tags: v.optional(v.array(v.string())),
+    // Date ISO 'YYYY-MM-DD'. `null` = EFFACER la date (le filtre `undefined`
+    // ci-dessous empêcherait sinon tout retrait) ; `undefined` = ne pas toucher.
+    date: v.optional(v.union(v.string(), v.null())),
   },
-  handler: async (ctx, { entryId, ...patch }) => {
+  handler: async (ctx, { entryId, date, ...patch }) => {
     const userId = await requireUser(ctx)
     const entry = await getOwnedEntry(ctx, userId, entryId)
     const oldReceiptId = entry.receiptId
 
     // On ne garde que les champs réellement définis.
-    const fields = Object.fromEntries(
+    const fields: Record<string, any> = Object.fromEntries(
       Object.entries(patch).filter(([, v]) => v !== undefined),
     )
+    // Date : null ⇒ on retire le champ (patch à `undefined`) ; string ⇒ on pose la
+    // date assainie ; undefined ⇒ on ne modifie pas.
+    if (date === null) fields.date = undefined
+    else if (date !== undefined) fields.date = sanitizeDate(date)
     await ctx.db.patch(entryId, fields)
 
     // Remplacement de reçu : nettoyer l'ancien s'il n'est plus utilisé.
@@ -482,6 +507,8 @@ export const importEntries = mutation({
         real: v.number(),
         // Reçu optionnel (partagé entre les lignes d'un même ticket).
         receiptId: v.optional(v.id('receipts')),
+        // Date optionnelle de la ligne (ISO 'YYYY-MM-DD').
+        date: v.optional(v.string()),
       }),
     ),
   },
@@ -533,6 +560,7 @@ export const importEntries = mutation({
         real: e.real,
         order: next,
         receiptId: e.receiptId,
+        date: sanitizeDate(e.date),
       })
       imported++
     }

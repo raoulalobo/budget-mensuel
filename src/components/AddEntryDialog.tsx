@@ -25,13 +25,30 @@ import { useSpeechToText } from '../lib/speech'
  * montant réel). La ligne — et le reçu de la photo — ne sont créés qu'à la
  * validation (« Ajouter »), ce qui évite tout fichier orphelin si on annule.
  */
+/**
+ * Date par défaut (ISO 'YYYY-MM-DD') pour une nouvelle ligne : aujourd'hui si le
+ * mois affiché est le mois civil en cours, sinon '' (date laissée vide).
+ */
+function defaultDateFor(year: number, month: number): string {
+  const now = new Date()
+  if (now.getFullYear() === year && now.getMonth() + 1 === month) {
+    return now.toISOString().slice(0, 10)
+  }
+  return ''
+}
+
 export default function AddEntryDialog({
   monthId,
   section,
+  year,
+  month,
   onClose,
 }: {
   monthId: Id<'months'>
   section: SectionDef
+  /** Année/mois affichés : sert à proposer une date par défaut cohérente. */
+  year: number
+  month: number
   onClose: () => void
 }) {
   // Devise de l'espace budget courant (pour le montant détecté par l'IA).
@@ -44,6 +61,9 @@ export default function AddEntryDialog({
   const [label, setLabel] = useState('')
   const [budget, setBudget] = useState('')
   const [real, setReal] = useState('')
+  // Date optionnelle (ISO 'YYYY-MM-DD'). Défaut : aujourd'hui si on saisit dans le
+  // mois en cours, sinon vide (la date reste facultative).
+  const [date, setDate] = useState(() => defaultDateFor(year, month))
   const [note, setNote] = useState('')
   const [tags, setTags] = useState('')
   // Photo choisie, gardée localement (uploadée seulement à la validation).
@@ -108,6 +128,9 @@ export default function AddEntryDialog({
       // Note : on remplit si vide et si l'IA a produit une note (détail des
       // articles + contexte).
       if (!note.trim() && res.summary.note) setNote(res.summary.note)
+      // Date : si l'IA a lu une date sur le document, on la propose (on n'écrase
+      // pas une date déjà saisie par l'utilisateur).
+      if (!date && res.summary.date) setDate(res.summary.date)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Échec de l'analyse.")
     } finally {
@@ -143,6 +166,7 @@ export default function AddEntryDialog({
         note: note.trim() || undefined,
         receiptId,
         tags: tagList.length > 0 ? tagList : undefined,
+        date: date || undefined,
       })
       onClose()
     } finally {
@@ -217,6 +241,17 @@ export default function AddEntryDialog({
                 onChange={(e) => setReal(e.target.value)}
               />
             </div>
+          </div>
+
+          {/* Date (optionnelle) de la dépense/revenu */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium">Date (facultative)</label>
+            <input
+              type="date"
+              className="app-input"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
 
           {/* Tags (séparés par des virgules) */}
