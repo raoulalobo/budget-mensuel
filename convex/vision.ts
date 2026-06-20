@@ -67,7 +67,9 @@ L'objet a EXACTEMENT ces deux clés :
 2) "entries" : un tableau de lignes détaillées. Chaque élément a EXACTEMENT :
    - "section" : une des valeurs EXACTES parmi "income","fixed","variable","credit","saving"
    - "label"   : libellé court en français (ex. "Salaire", "Loyer", "Pain")
-   - "amount"  : nombre positif en euros (point décimal, sans symbole ni espace)
+   - "amount"  : le montant positif tel qu'IMPRIMÉ sur le document, quelle que soit
+     sa devise (point décimal, sans symbole de devise ni espace ; n'effectue AUCUNE
+     conversion de devise)
 
 Règles de classification (pour "section") :
 - Salaire, paie, primes, remboursements, revenus → "income"

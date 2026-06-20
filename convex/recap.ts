@@ -35,7 +35,7 @@ const MONTHS = [
 ]
 
 const SYSTEM_PROMPT = `Tu es un conseiller budgétaire francophone, bienveillant et concret.
-À partir des chiffres d'un mois (montants en euros), rédige en français :
+À partir des chiffres d'un mois (les montants sont déjà formatés dans la devise de l'utilisateur, indiquée en tête des données — réutilise cette même devise dans ta réponse), rédige en français :
 1. Une courte synthèse (2-3 phrases) de la situation du mois (excédent/déficit, postes notables, écarts prévu/réel).
 2. 2 à 4 conseils ACTIONNABLES pour améliorer le budget, en citant des postes/montants précis.
 Base-toi UNIQUEMENT sur les chiffres fournis, n'invente aucun montant. Format Markdown court (titres ##, listes à puces). Sois chaleureux mais factuel.`
@@ -66,21 +66,26 @@ export const monthlyRecap = action({
       return { text: null, error: 'Aucune donnée pour ce mois.' }
     }
 
-    const eur = (n: number) =>
-      `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+    // Devise de l'espace budget courant (même résolution que l'UI : propriétaire
+    // effectif). Les montants sont formatés dans cette devise pour le prompt IA.
+    const currency = await ctx.runQuery(api.settings.getCurrency, {})
+    // Intl gère les décimales selon la devise (EUR/USD → 2, XAF → 0).
+    const money = (n: number) =>
+      new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(n)
 
     const s = data.summary
-    let dataText = `Mois : ${MONTHS[month]} ${year}\n`
-    dataText += `Revenus réels : ${eur(s.incomeReal)} | Dépenses réelles : ${eur(s.expenseReal)} | NET : ${eur(s.netReal)} (net prévu : ${eur(s.netBudget)})\n`
+    let dataText = `Devise des montants : ${currency}\n`
+    dataText += `Mois : ${MONTHS[month]} ${year}\n`
+    dataText += `Revenus réels : ${money(s.incomeReal)} | Dépenses réelles : ${money(s.expenseReal)} | NET : ${money(s.netReal)} (net prévu : ${money(s.netBudget)})\n`
     // Parcourt les rubriques du mois (dynamiques) dans leur ordre d'affichage.
     for (const section of data.sections) {
       const items = data.entries.filter((e: any) => e.section === section.key)
       if (items.length === 0) continue
       const tb = items.reduce((acc: number, e: any) => acc + e.budget, 0)
       const tr = items.reduce((acc: number, e: any) => acc + e.real, 0)
-      dataText += `\n## ${section.label} — prévu ${eur(tb)}, réel ${eur(tr)}\n`
+      dataText += `\n## ${section.label} — prévu ${money(tb)}, réel ${money(tr)}\n`
       for (const e of items) {
-        dataText += `- ${e.label} : prévu ${eur(e.budget)}, réel ${eur(e.real)}\n`
+        dataText += `- ${e.label} : prévu ${money(e.budget)}, réel ${money(e.real)}\n`
       }
     }
 
