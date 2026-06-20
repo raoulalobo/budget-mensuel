@@ -1,4 +1,4 @@
-import { parseAmount } from '../csv'
+import { parseAmount, parseDate } from '../csv'
 import type { ParsedEntry, SectionRef } from '../csv'
 import type { ImportMapping, SectionStrategy } from './types'
 
@@ -56,6 +56,8 @@ export function validateMapping(
     problems.push(`Colonne « réel » invalide (${mapping.realColumn}).`)
   if (mapping.budgetColumn === null && mapping.realColumn === null)
     problems.push('Aucune colonne de montant définie.')
+  if (mapping.dateColumn != null && !colOk(mapping.dateColumn))
+    problems.push(`Colonne date invalide (${mapping.dateColumn}).`)
   if (!Number.isInteger(mapping.headerRows) || mapping.headerRows < 0)
     problems.push(`Nombre de lignes d'en-tête invalide (${mapping.headerRows}).`)
 
@@ -192,11 +194,19 @@ export function applyMapping(
       }
     }
 
+    // 5) Date optionnelle : si une colonne date est mappée, on la convertit en ISO
+    //    (cellule illisible → ligne sans date, pas d'erreur bloquante).
+    let date: string | undefined
+    if (mapping.dateColumn != null) {
+      date = parseDate((row[mapping.dateColumn] ?? '').trim())
+    }
+
     entries.push({
       section: resolveSection(mapping.section, row),
       label,
       budget,
       real,
+      date,
     })
   })
 

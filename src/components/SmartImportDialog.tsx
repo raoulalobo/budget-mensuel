@@ -58,6 +58,8 @@ interface EditableRow {
   label: string
   budget: string
   real: string
+  /** Date ISO 'YYYY-MM-DD' (vide si aucune). */
+  date: string
 }
 
 /** Libellé de colonne pour les selects du mode manuel : "Colonne 2 — « Montant »". */
@@ -111,6 +113,7 @@ export default function SmartImportDialog({
   const [mLabel, setMLabel] = useState(0)
   const [mBudget, setMBudget] = useState<number | -1>(-1) // -1 = aucune
   const [mReal, setMReal] = useState<number | -1>(1)
+  const [mDate, setMDate] = useState<number | -1>(-1) // -1 = aucune colonne date
   const [mSection, setMSection] = useState('')
   const [mHeader, setMHeader] = useState(true)
 
@@ -193,6 +196,7 @@ export default function SmartImportDialog({
         label: e.label,
         budget: String(e.budget),
         real: String(e.real),
+        date: e.date ?? '',
       })),
     )
     setRowErrors(res.errors)
@@ -235,6 +239,7 @@ export default function SmartImportDialog({
       labelColumn: mLabel,
       budgetColumn: mBudget === -1 ? null : mBudget,
       realColumn: mReal === -1 ? null : mReal,
+      dateColumn: mDate === -1 ? null : mDate,
       singleAmountTarget: 'both',
       section: { type: 'fixed', key: mSection },
       skipRowIndexes: [],
@@ -255,7 +260,7 @@ export default function SmartImportDialog({
   function addRow() {
     setRows((rs) => [
       ...rs,
-      { section: fallbackKey, label: '', budget: '0', real: '0' },
+      { section: fallbackKey, label: '', budget: '0', real: '0', date: '' },
     ])
   }
 
@@ -275,6 +280,8 @@ export default function SmartImportDialog({
           label: r.label.trim(),
           budget: Number(r.budget) || 0,
           real: Number(r.real) || 0,
+          // Date optionnelle : envoyée seulement si renseignée (sinon ligne sans date).
+          date: r.date.trim() || undefined,
         })),
       })
       onClose()
@@ -553,6 +560,21 @@ export default function SmartImportDialog({
                     ))}
                   </select>
                 </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Colonne « date »</label>
+                  <select
+                    className="app-input"
+                    value={mDate}
+                    onChange={(e) => setMDate(Number(e.target.value))}
+                  >
+                    <option value={-1}>— Aucune —</option>
+                    {Array.from({ length: columnCount }, (_, i) => (
+                      <option key={i} value={i}>
+                        {columnLabel(table, i)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -624,6 +646,7 @@ export default function SmartImportDialog({
                         <th className="px-3 py-2 font-medium">Libellé</th>
                         <th className="w-28 px-3 py-2 text-right font-medium">Prévu</th>
                         <th className="w-28 px-3 py-2 text-right font-medium">Réel</th>
+                        <th className="w-36 px-3 py-2 font-medium">Date</th>
                         <th className="w-10 px-2 py-2" />
                       </tr>
                     </thead>
@@ -668,6 +691,14 @@ export default function SmartImportDialog({
                               className="w-full rounded bg-transparent px-1 py-1 text-right tabular-nums outline-none focus:bg-background"
                               value={row.real}
                               onChange={(e) => updateRow(i, { real: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="date"
+                              className="w-full rounded bg-transparent px-1 py-1 outline-none focus:bg-background"
+                              value={row.date}
+                              onChange={(e) => updateRow(i, { date: e.target.value })}
                             />
                           </td>
                           <td className="px-2 py-1.5 text-center">

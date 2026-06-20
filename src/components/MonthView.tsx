@@ -3,6 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import {
   AlertTriangle,
+  CalendarDays,
   Camera,
   ChevronLeft,
   ChevronRight,
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { monthName } from '../lib/budget'
+import { monthName, formatDate } from '../lib/budget'
 import { useCurrency } from '../lib/useCurrency'
 import { type SectionDef } from '../lib/useSections'
 import { generateMonthPdf } from '../lib/pdf'
@@ -74,6 +75,8 @@ export default function MonthView({
   const [addSectionOpen, setAddSectionOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  // Tri d'affichage des lignes : par `order` (défaut) ou par date chronologique.
+  const [sortByDate, setSortByDate] = useState(false)
 
   // Navigation : passage d'année aux bornes (janvier ← déc année précédente,
   // décembre → jan année suivante).
@@ -270,15 +273,27 @@ export default function MonthView({
             </span>
           </div>
 
-          {/* Recherche / filtre des lignes (libellé ou tag) */}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              className="app-input pl-9"
-              placeholder="Rechercher une ligne (libellé, note ou tag)…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          {/* Recherche / filtre des lignes (libellé, note, tag ou date) + tri */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className="app-input pl-9"
+                placeholder="Rechercher une ligne (libellé, note, tag ou date)…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            {/* Bascule de tri : ordre manuel (défaut) ↔ chronologique par date. */}
+            <button
+              type="button"
+              className={sortByDate ? 'app-btn-primary' : 'app-btn-ghost'}
+              onClick={() => setSortByDate((s) => !s)}
+              title="Trier les lignes par date"
+            >
+              <CalendarDays className="h-4 w-4" />
+              {sortByDate ? 'Tri par date' : 'Tri par ordre'}
+            </button>
           </div>
 
           {/* Une carte par RUBRIQUE (dynamique, filtrée par la recherche). */}
@@ -288,10 +303,15 @@ export default function MonthView({
                 key={section.key}
                 section={section}
                 monthId={data.month._id}
+                year={year}
+                month={month}
                 canEdit={canEdit}
-                entries={data.entries
-                  .filter((e) => e.section === section.key)
-                  .filter((e) => matchSearch(e, search))}
+                entries={sortEntries(
+                  data.entries
+                    .filter((e) => e.section === section.key)
+                    .filter((e) => matchSearch(e, search)),
+                  sortByDate,
+                )}
               />
             ))}
           </div>
@@ -376,16 +396,33 @@ interface Entry {
   note?: string
   receiptId?: Id<'receipts'>
   tags?: string[]
+  date?: string
 }
 
-/** Une ligne correspond-elle à la recherche (libellé ou tag) ? */
+/** Une ligne correspond-elle à la recherche (libellé, note, tag ou date) ? */
 function matchSearch(entry: Entry, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
   if (entry.label.toLowerCase().includes(q)) return true
-  // La note (détail de facture, marchand, date…) est aussi fouillée.
+  // La note (détail de facture, marchand…) est aussi fouillée.
   if (entry.note && entry.note.toLowerCase().includes(q)) return true
+  // Date : on cherche dans l'ISO ('2025-01') ET dans le format fr ('15/01/2025').
+  if (entry.date && (entry.date.includes(q) || formatDate(entry.date).includes(q)))
+    return true
   return (entry.tags ?? []).some((t) => t.toLowerCase().includes(q))
+}
+
+/**
+ * Trie les lignes pour l'affichage. Les entrées arrivent déjà triées par `order`
+ * (tri par défaut, renvoyé tel quel). Si `byDate`, on trie chronologiquement par
+ * date ISO croissante ; les lignes SANS date sont reléguées en fin de liste.
+ */
+function sortEntries(entries: Entry[], byDate: boolean): Entry[] {
+  if (!byDate) return entries
+  // `date ?? '￿'` : un caractère très haut place les lignes sans date après.
+  return [...entries].sort((a, b) =>
+    (a.date ?? '￿').localeCompare(b.date ?? '￿'),
+  )
 }
 
 /**
@@ -394,11 +431,15 @@ function matchSearch(entry: Entry, query: string): boolean {
 function SectionCard({
   section,
   monthId,
+  year,
+  month,
   entries,
   canEdit,
 }: {
   section: SectionDef
   monthId: Id<'months'>
+  year: number
+  month: number
   entries: Entry[]
   canEdit: boolean
 }) {
@@ -544,6 +585,8 @@ function SectionCard({
         <AddEntryDialog
           monthId={monthId}
           section={section}
+          year={year}
+          month={month}
           onClose={() => setAddOpen(false)}
         />
       )}
@@ -609,6 +652,15 @@ function EntryRow({
             if (label !== entry.label) void updateEntry({ entryId: entry._id, label })
           }}
         />
+        {/* Date de la ligne (si renseignée) : petite puce sous le libellé. */}
+        {entry.date && (
+          <div className="px-1">
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <CalendarDays className="h-3 w-3" />
+              {formatDate(entry.date)}
+            </span>
+          </div>
+        )}
         {entry.tags && entry.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 px-1">
             {entry.tags.map((t) => (

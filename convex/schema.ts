@@ -55,6 +55,10 @@ export default defineSchema({
     note: v.optional(v.string()),
     // Étiquettes libres pour la recherche / le filtrage.
     tags: v.optional(v.array(v.string())),
+    // Date de la dépense/revenu au format ISO 'YYYY-MM-DD'. Optionnel : les lignes
+    // agrégées/fixes (loyer…) peuvent ne pas en avoir. Pas d'index : le tri/filtre
+    // se fait en mémoire sur les lignes déjà chargées d'un mois (faible volume).
+    date: v.optional(v.string()),
   })
     .index('by_month', ['monthId'])
     .index('by_month_section', ['monthId', 'section'])

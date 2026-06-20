@@ -55,6 +55,7 @@ interface EditableRow {
   section: string
   label: string
   amount: string
+  date: string // date ISO 'YYYY-MM-DD' détectée par l'IA (vide si aucune)
   sourceSeq?: number // photo d'origine (pour rattacher l'image stockée)
 }
 
@@ -155,6 +156,8 @@ export default function PhotoImportDialog({
               section: resolveKey(r.section),
               label: r.label,
               amount: String(r.budget),
+              // Date détectée (ligne ou document) ; vide si l'IA n'en a pas lu.
+              date: r.date ?? '',
               sourceSeq: img.seq,
             })),
           ])
@@ -203,7 +206,7 @@ export default function PhotoImportDialog({
     setRows((rs) => rs.filter((_, idx) => idx !== i))
   }
   function addRow() {
-    setRows((rs) => [...rs, { section: fallbackKey, label: '', amount: '0' }])
+    setRows((rs) => [...rs, { section: fallbackKey, label: '', amount: '0', date: '' }])
   }
 
   // Lignes conservées (libellé non vide), avec leur lien photo (sourceSeq).
@@ -249,6 +252,7 @@ export default function PhotoImportDialog({
         real: Number(r.amount) || 0,
         receiptId:
           r.sourceSeq !== undefined ? seqToReceiptId.get(r.sourceSeq) : undefined,
+        date: r.date.trim() || undefined,
       }))
 
       await importEntries({ monthId, entries, replace })
@@ -395,6 +399,7 @@ export default function PhotoImportDialog({
                         <th className="w-32 px-3 py-2 text-right font-medium">
                           Montant
                         </th>
+                        <th className="w-36 px-3 py-2 font-medium">Date</th>
                         <th className="w-10 px-2 py-2" />
                       </tr>
                     </thead>
@@ -431,6 +436,14 @@ export default function PhotoImportDialog({
                               className="w-full rounded bg-transparent px-1 py-1 text-right tabular-nums outline-none focus:bg-background"
                               value={row.amount}
                               onChange={(e) => updateRow(i, { amount: e.target.value })}
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="date"
+                              className="w-full rounded bg-transparent px-1 py-1 outline-none focus:bg-background"
+                              value={row.date}
+                              onChange={(e) => updateRow(i, { date: e.target.value })}
                             />
                           </td>
                           <td className="px-2 py-1.5 text-center">

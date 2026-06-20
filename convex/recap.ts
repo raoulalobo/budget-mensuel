@@ -18,6 +18,12 @@ import { api } from './_generated/api'
  *  - DEEPSEEK_BASE_URL (optionnel, défaut "https://api.deepseek.com")
  */
 
+/** 'YYYY-MM-DD' → 'DD/MM/YYYY' (simple, sans fuseau). Repli sur l'entrée si autre. */
+function frDate(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
+}
+
 const MONTHS = [
   '',
   'Janvier',
@@ -85,7 +91,9 @@ export const monthlyRecap = action({
       const tr = items.reduce((acc: number, e: any) => acc + e.real, 0)
       dataText += `\n## ${section.label} — prévu ${money(tb)}, réel ${money(tr)}\n`
       for (const e of items) {
-        dataText += `- ${e.label} : prévu ${money(e.budget)}, réel ${money(e.real)}\n`
+        // Préfixe la date de la ligne quand elle existe (ex. "[15/01] ").
+        const datePrefix = e.date ? `[${frDate(e.date)}] ` : ''
+        dataText += `- ${datePrefix}${e.label} : prévu ${money(e.budget)}, réel ${money(e.real)}\n`
       }
     }
 

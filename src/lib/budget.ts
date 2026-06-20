@@ -91,6 +91,44 @@ export function formatEUR(value: number): string {
   return formatMoney(value, 'EUR')
 }
 
+/**
+ * Vérifie qu'une chaîne est une date ISO `YYYY-MM-DD` valide (format ET date
+ * réelle : '2025-02-30' est rejeté). Utilisé côté client et serveur pour ne
+ * stocker que des dates propres sur les lignes.
+ * Exemple : isValidISODate('2025-01-15') => true ; isValidISODate('15/01/2025') => false.
+ */
+export function isValidISODate(s: string): boolean {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return false
+  const [, y, mo, d] = m
+  // Midi LOCAL (pas minuit) pour éviter tout glissement de jour dû au fuseau, puis
+  // on compare aux composantes LOCALES (pas à toISOString/UTC) : ainsi on rejette
+  // bien les dates impossibles (31 février → 3 mars) sans faux négatif de fuseau.
+  const dt = new Date(`${y}-${mo}-${d}T12:00:00`)
+  return (
+    !Number.isNaN(dt.getTime()) &&
+    dt.getFullYear() === Number(y) &&
+    dt.getMonth() + 1 === Number(mo) &&
+    dt.getDate() === Number(d)
+  )
+}
+
+/**
+ * Formate une date ISO `YYYY-MM-DD` au format français court.
+ * Repli `''` si absente/invalide (lignes sans date : affichage neutre).
+ * Exemple : formatDate('2025-01-15') => "15/01/2025".
+ */
+const dateFormatter = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+export function formatDate(iso?: string): string {
+  if (!iso || !isValidISODate(iso)) return ''
+  // Midi local pour éviter tout glissement de jour lié au fuseau.
+  return dateFormatter.format(new Date(`${iso}T12:00:00`))
+}
+
 /** Forme minimale d'une ligne de budget pour les calculs (sous-ensemble du doc Convex). */
 export interface EntryLike {
   section: Section

@@ -16,6 +16,12 @@ import { api } from './_generated/api'
  * DEEPSEEK_BASE_URL optionnels) — mêmes que le récap IA.
  */
 
+/** 'YYYY-MM-DD' → 'DD/MM/YYYY' (simple, sans fuseau). Repli sur l'entrée si autre. */
+function frDate(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
+}
+
 const MONTHS = [
   '',
   'Janvier',
@@ -82,7 +88,9 @@ export const ask = action({
     for (const m of snap.months) {
       ctxText += `\n# ${MONTHS[m.month]} ${m.year} — Revenus ${money(m.summary.incomeReal)}, Dépenses ${money(m.summary.expenseReal)}, Net ${money(m.summary.netReal)}\n`
       for (const e of m.entries) {
-        ctxText += `  - [${sectionLabel(e.section)}] ${e.label} : prévu ${money(e.budget)}, réel ${money(e.real)}\n`
+        // Ajoute la date de la ligne quand elle existe (ex. " (15/01/2025)").
+        const dateSuffix = e.date ? ` (${frDate(e.date)})` : ''
+        ctxText += `  - [${sectionLabel(e.section)}] ${e.label}${dateSuffix} : prévu ${money(e.budget)}, réel ${money(e.real)}\n`
       }
     }
     if (snap.recurring.length > 0) {

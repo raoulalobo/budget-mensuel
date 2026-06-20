@@ -30,21 +30,37 @@ const SECTION_KEYS = ['income', 'fixed', 'variable', 'credit', 'saving'] as cons
 type SectionKey = (typeof SECTION_KEYS)[number]
 
 // Une ligne extraite, au format attendu par `budget.importEntries`.
+//  - date : date de la ligne (ISO 'YYYY-MM-DD') si lisible ; repli sur la date du
+//    document. Optionnel.
 interface ExtractedRow {
   section: SectionKey
   label: string
   budget: number
   real: number
+  date?: string
 }
 
 // Résumé consolidé du document, pour les flux « ligne unique » (ajout / détail).
 //  - label : libellé global du document
 //  - total : le « Total » imprimé (sert de montant ; 0 si non lisible)
-//  - note  : le détail des articles + contexte (marchand, date, référence)
+//  - note  : le détail des articles + contexte (marchand, référence)
+//  - date  : date du document (ISO 'YYYY-MM-DD') si lisible, sinon ''
 interface Summary {
   label: string
   total: number
   note: string
+  date: string
+}
+
+/**
+ * Ne garde qu'une date ISO `YYYY-MM-DD` réellement valide renvoyée par le modèle,
+ * sinon `''` (résumé) / `undefined` (ligne). Évite de stocker une date inventée
+ * ou malformée. Dupliqué ici (vision n'importe pas `src/lib/budget.ts`).
+ */
+function cleanISODate(s: unknown): string {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return ''
+  const d = new Date(`${s}T12:00:00`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s ? s : ''
 }
 
 // Consigne donnée au modèle : extraire des lignes ET un résumé, en JSON pur.
@@ -60,9 +76,11 @@ L'objet a EXACTEMENT ces deux clés :
      total", "Total TTC", "NET À PAYER", "à payer"). Nombre positif (point
      décimal, sans symbole ni espace). Mets 0 si aucun total n'est lisible.
    - "note"  : le DÉTAIL des articles/postes, un par ligne au format
-     "Nom de l'article — prix", PUIS le contexte utile (marchand, date, n° de
+     "Nom de l'article — prix", PUIS le contexte utile (marchand, n° de
      référence). S'il n'y a qu'un seul poste ou rien d'utile, mets une note brève
      ou une chaîne vide "". N'invente aucune information absente du document.
+   - "date"  : la DATE du document au format ISO "YYYY-MM-DD" (ex. "2025-01-15").
+     Chaîne vide "" si aucune date n'est lisible. N'invente JAMAIS de date.
 
 2) "entries" : un tableau de lignes détaillées. Chaque élément a EXACTEMENT :
    - "section" : une des valeurs EXACTES parmi "income","fixed","variable","credit","saving"
@@ -70,6 +88,9 @@ L'objet a EXACTEMENT ces deux clés :
    - "amount"  : le montant positif tel qu'IMPRIMÉ sur le document, quelle que soit
      sa devise (point décimal, sans symbole de devise ni espace ; n'effectue AUCUNE
      conversion de devise)
+   - "date"    : date PROPRE à cette ligne au format ISO "YYYY-MM-DD" si le document
+     en porte plusieurs (ex. relevé bancaire) ; sinon omets ce champ ou mets "" (la
+     date du document s'appliquera). N'invente JAMAIS de date.
 
 Règles de classification (pour "section") :
 - Salaire, paie, primes, remboursements, revenus → "income"
@@ -89,7 +110,7 @@ Cas particuliers (pour "entries") :
   le montant total de cet article (3,00).
 - N'invente rien : ne renvoie aucune ligne dont le montant n'est pas lisible.
 Si le document ne contient aucune information budgétaire, réponds avec
-{"summary":{"label":"","total":0,"note":""},"entries":[]}.`
+{"summary":{"label":"","total":0,"note":"","date":""},"entries":[]}.`
 
 const USER_TEXT =
   'Analyse ce document. Réponds avec l\'objet JSON {summary, entries} uniquement.'
@@ -106,7 +127,7 @@ export const extractEntriesFromImage = action({
     { imageBase64, mimeType },
   ): Promise<{ rows: ExtractedRow[]; errors: string[]; summary: Summary }> => {
     // Résumé vide par défaut (renvoyé sur tous les chemins d'erreur).
-    const emptySummary: Summary = { label: '', total: 0, note: '' }
+    const emptySummary: Summary = { label: '', total: 0, note: '', date: '' }
 
     // Garde-fou : on n'expose pas un proxy vision gratuit aux non-connectés.
     const userId = await getAuthUserId(ctx)
@@ -232,6 +253,8 @@ export const extractEntriesFromImage = action({
         typeof rawSummary?.label === 'string' ? rawSummary.label.trim() : '',
       total: Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0,
       note: typeof rawSummary?.note === 'string' ? rawSummary.note.trim() : '',
+      // Date du document (ISO valide uniquement, sinon '').
+      date: cleanISODate(rawSummary?.date),
     }
 
     const rows: ExtractedRow[] = []
@@ -254,8 +277,10 @@ export const extractEntriesFromImage = action({
         errors.push(`Ligne ${i + 1} ignorée : montant non numérique.`)
         return
       }
+      // Date propre à la ligne si lisible, sinon repli sur la date du document.
+      const rowDate = cleanISODate(item?.date) || summary.date || undefined
       // Le montant lu sert à la fois de "prévu" et de "réel" (ajustable ensuite).
-      rows.push({ section, label, budget: amount, real: amount })
+      rows.push({ section, label, budget: amount, real: amount, date: rowDate })
     })
 
     if (rows.length === 0 && errors.length === 0) {
