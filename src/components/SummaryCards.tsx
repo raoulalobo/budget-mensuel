@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, Wallet } from 'lucide-react'
-import { formatEUR, type MonthSummary } from '../lib/budget'
+import { type MonthSummary } from '../lib/budget'
+import { useCurrency } from '../lib/useCurrency'
 
 /**
  * Trois cartes synthétisant un mois : Revenus, Dépenses, NET.
@@ -7,6 +8,8 @@ import { formatEUR, type MonthSummary } from '../lib/budget'
  * (Reproduit le bloc "RÉSUMÉ DU BUDGET" de la feuille.)
  */
 export default function SummaryCards({ summary }: { summary: MonthSummary }) {
+  // Devise de l'espace budget courant (repli EUR pendant le chargement).
+  const { format: fmt } = useCurrency()
   const cards = [
     {
       label: 'Revenus',
@@ -57,10 +60,10 @@ export default function SummaryCards({ summary }: { summary: MonthSummary }) {
                   : undefined,
             }}
           >
-            {formatEUR(c.real)}
+            {fmt(c.real)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Prévu : {formatEUR(c.budget)}
+            Prévu : {fmt(c.budget)}
           </p>
         </div>
       ))}

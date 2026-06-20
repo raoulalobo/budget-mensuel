@@ -148,6 +148,10 @@ export default defineSchema({
   userProfiles: defineTable({
     userId: v.id('users'),
     avatarId: v.optional(v.id('_storage')),
+    // Devise de l'espace budget de CE propriétaire (code ISO 4217 : 'EUR',
+    // 'USD', 'XAF'…). Optionnel ⇒ aucune migration des lignes existantes ;
+    // absent ⇒ repli 'EUR' (cf. convex/settings.ts et src/lib/useCurrency.ts).
+    currency: v.optional(v.string()),
   }).index('by_user', ['userId']),
 
   /**

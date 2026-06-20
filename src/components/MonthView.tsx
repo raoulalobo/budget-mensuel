@@ -23,7 +23,8 @@ import {
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { formatEUR, monthName } from '../lib/budget'
+import { monthName } from '../lib/budget'
+import { useCurrency } from '../lib/useCurrency'
 import { type SectionDef } from '../lib/useSections'
 import { generateMonthPdf } from '../lib/pdf'
 import { useBudgetRole } from '../lib/budgetRole'
@@ -54,6 +55,9 @@ export default function MonthView({
   year: number
   month: number
 }) {
+  // Devise de l'espace budget courant (repli EUR pendant le chargement) :
+  // `fmt` pour l'affichage, `currency` (code) pour transmettre au PDF.
+  const { format: fmt, currency } = useCurrency()
   // `undefined` = en cours de chargement ; `null` = le mois n'existe pas encore.
   const data = useQuery(api.budget.getMonth, { year, month })
   const ensureMonth = useMutation(api.budget.ensureMonth)
@@ -115,6 +119,7 @@ export default function MonthView({
     generateMonthPdf({
       title: `${monthName(month)} ${year}`,
       summary: data.summary,
+      currency,
       sections: data.sections.map((section) => ({
         label: section.label,
         rows: data.entries
@@ -237,7 +242,7 @@ export default function MonthView({
                     dépassement
                   </strong>{' '}
                   — total dépassé :{' '}
-                  <strong className="tabular-nums">+{formatEUR(total)}</strong>
+                  <strong className="tabular-nums">+{fmt(total)}</strong>
                 </span>
               </div>
             )
@@ -249,7 +254,7 @@ export default function MonthView({
             <span>
               Reste à dépenser :{' '}
               <strong className="tabular-nums">
-                {formatEUR(
+                {fmt(
                   Math.max(0, data.summary.expenseBudget - data.summary.expenseReal),
                 )}
               </strong>
@@ -260,7 +265,7 @@ export default function MonthView({
                 className="tabular-nums"
                 style={{ color: data.summary.netBudget >= 0 ? '#16a34a' : '#dc2626' }}
               >
-                {formatEUR(data.summary.netBudget)}
+                {fmt(data.summary.netBudget)}
               </strong>
             </span>
           </div>
@@ -397,6 +402,8 @@ function SectionCard({
   entries: Entry[]
   canEdit: boolean
 }) {
+  // Devise de l'espace budget courant (pour les sous-totaux de la rubrique).
+  const { format: fmt } = useCurrency()
   // Ligne dont le détail est ouvert (re-dérivée depuis `entries` pour rester à jour).
   const [selectedId, setSelectedId] = useState<Id<'entries'> | null>(null)
   const selected = entries.find((e) => e._id === selectedId) ?? null
@@ -496,10 +503,10 @@ function SectionCard({
             <tr className="border-t border-border font-semibold">
               <td className="px-4 py-2">Total {section.label}</td>
               <td className="px-4 py-2 text-right tabular-nums">
-                {formatEUR(totals.budget)}
+                {fmt(totals.budget)}
               </td>
               <td className="px-4 py-2 text-right tabular-nums">
-                {formatEUR(totals.real)}
+                {fmt(totals.real)}
               </td>
               <td className="px-4 py-2 text-right tabular-nums">
                 <Diff value={totals.budget - totals.real} isExpense={isExpense} />
@@ -579,6 +586,8 @@ function EntryRow({
 }) {
   const updateEntry = useMutation(api.budget.updateEntry)
   const removeEntry = useMutation(api.budget.removeEntry)
+  // Devise de l'espace budget courant (pour l'aria-label de dépassement).
+  const { format: fmt } = useCurrency()
 
   // États locaux pour une saisie fluide (sinon chaque frappe = une mutation).
   const [label, setLabel] = useState(entry.label)
@@ -642,7 +651,7 @@ function EntryRow({
           {overspent && (
             <AlertTriangle
               className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400"
-              aria-label={`Dépassement de ${formatEUR(entry.real - entry.budget)}`}
+              aria-label={`Dépassement de ${fmt(entry.real - entry.budget)}`}
             />
           )}
           {/* Indicateurs : photo jointe / note présente */}
@@ -928,6 +937,8 @@ function ClearSectionDialog({
  * Pour un revenu : écart positif (on a gagné moins que prévu) = rouge.
  */
 function Diff({ value, isExpense }: { value: number; isExpense: boolean }) {
+  // Devise de l'espace budget courant (pour l'écart affiché).
+  const { format: fmt } = useCurrency()
   if (Math.abs(value) < 0.005) {
     return <span className="text-muted-foreground">—</span>
   }
@@ -935,7 +946,7 @@ function Diff({ value, isExpense }: { value: number; isExpense: boolean }) {
   return (
     <span className={favorable ? 'text-emerald-600' : 'text-red-600'}>
       {value > 0 ? '+' : ''}
-      {formatEUR(value)}
+      {fmt(value)}
     </span>
   )
 }

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import { formatEUR, monthName } from '../lib/budget'
+import { monthName } from '../lib/budget'
+import { useCurrency } from '../lib/useCurrency'
 import YearSelector from '../components/YearSelector'
 import { Skeleton } from '../components/Skeleton'
 
@@ -24,6 +25,8 @@ function MonthsIndex() {
   const months = useQuery(api.budget.listMonths)
   const ensureMonth = useMutation(api.budget.ensureMonth)
   const navigate = useNavigate()
+  // Devise de l'espace budget courant (pour le net affiché par mois).
+  const { format: fmt } = useCurrency()
 
   // Année affichée : suit le défaut tant que l'utilisateur n'a pas choisi.
   const currentYear = new Date().getFullYear()
@@ -104,7 +107,7 @@ function MonthsIndex() {
                   color: hasData ? (net >= 0 ? '#16a34a' : '#dc2626') : undefined,
                 }}
               >
-                {hasData ? formatEUR(net) : '—'}
+                {hasData ? fmt(net) : '—'}
               </p>
             </button>
           )

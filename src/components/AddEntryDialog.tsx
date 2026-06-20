@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { formatEUR } from '../lib/budget'
+import { useCurrency } from '../lib/useCurrency'
 import { type SectionDef } from '../lib/useSections'
 import { downscaleImage } from '../lib/image'
 import { uploadImageDataUrl } from '../lib/upload'
@@ -34,6 +34,8 @@ export default function AddEntryDialog({
   section: SectionDef
   onClose: () => void
 }) {
+  // Devise de l'espace budget courant (pour le montant détecté par l'IA).
+  const { format: fmt } = useCurrency()
   const addEntry = useMutation(api.budget.addEntry)
   const generateUploadUrl = useMutation(api.budget.generateUploadUrl)
   const createReceipt = useMutation(api.budget.createReceipt)
@@ -277,7 +279,7 @@ export default function AddEntryDialog({
               <div className="mt-2 flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm">
                 <span>
                   Montant détecté :{' '}
-                  <strong className="tabular-nums">{formatEUR(detected)}</strong>
+                  <strong className="tabular-nums">{fmt(detected)}</strong>
                 </span>
                 <button
                   className="app-btn-primary px-3 py-1 text-xs"

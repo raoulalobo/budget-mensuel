@@ -13,7 +13,8 @@ import {
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
-import { formatEUR, type Section } from '../lib/budget'
+import { type Section } from '../lib/budget'
+import { useCurrency } from '../lib/useCurrency'
 import { downscaleImage } from '../lib/image'
 import { uploadImageDataUrl } from '../lib/upload'
 import { useSpeechToText } from '../lib/speech'
@@ -49,6 +50,8 @@ export default function EntryDetailDialog({
   sectionColor: string
   onClose: () => void
 }) {
+  // Devise de l'espace budget courant (pour les montants Prévu/Réel/Écart).
+  const { format: fmt } = useCurrency()
   const updateEntry = useMutation(api.budget.updateEntry)
   const removeEntry = useMutation(api.budget.removeEntry)
   const generateUploadUrl = useMutation(api.budget.generateUploadUrl)
@@ -224,15 +227,15 @@ export default function EntryDetailDialog({
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="rounded-md border border-border p-2">
               <p className="text-xs text-muted-foreground">Prévu</p>
-              <p className="font-semibold tabular-nums">{formatEUR(entry.budget)}</p>
+              <p className="font-semibold tabular-nums">{fmt(entry.budget)}</p>
             </div>
             <div className="rounded-md border border-border p-2">
               <p className="text-xs text-muted-foreground">Réel</p>
-              <p className="font-semibold tabular-nums">{formatEUR(entry.real)}</p>
+              <p className="font-semibold tabular-nums">{fmt(entry.real)}</p>
             </div>
             <div className="rounded-md border border-border p-2">
               <p className="text-xs text-muted-foreground">Écart</p>
-              <p className="font-semibold tabular-nums">{formatEUR(ecart)}</p>
+              <p className="font-semibold tabular-nums">{fmt(ecart)}</p>
             </div>
           </div>
 
@@ -293,7 +296,7 @@ export default function EntryDetailDialog({
               <div className="mt-2 flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm">
                 <span>
                   Montant détecté :{' '}
-                  <strong className="tabular-nums">{formatEUR(detected)}</strong>
+                  <strong className="tabular-nums">{fmt(detected)}</strong>
                 </span>
                 <button className="app-btn-primary px-3 py-1 text-xs" onClick={applyDetected}>
                   Appliquer au réel
