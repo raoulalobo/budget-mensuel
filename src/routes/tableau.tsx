@@ -25,7 +25,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
-import { formatEUR, monthName } from '../lib/budget'
+import { monthName } from '../lib/budget'
+import { useCurrency } from '../lib/useCurrency'
 import { useSections } from '../lib/useSections'
 import { generateYearPdf } from '../lib/pdf'
 import YearSelector from '../components/YearSelector'
@@ -54,6 +55,9 @@ export const Route = createFileRoute('/tableau')({
 
 function Dashboard() {
   const months = useQuery(api.budget.listMonths)
+  // Devise de l'espace budget courant : `fmt` pour l'affichage, `currency` (code)
+  // pour le PDF annuel.
+  const { format: fmt, currency } = useCurrency()
   // Année sélectionnée (hook appelé inconditionnellement, avant tout return).
   const [picked, setPicked] = useState<number | null>(null)
   // Mois sélectionné pour le récap mensuel (null = dernier mois renseigné).
@@ -140,6 +144,7 @@ function Dashboard() {
             onClick={() =>
               generateYearPdf({
                 year,
+              currency,
               totals: {
                 income: totalIncome,
                 expense: totalExpense,
@@ -181,7 +186,7 @@ function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="mois" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => formatEUR(v)} />
+              <Tooltip formatter={(v: number) => fmt(v)} />
               <Legend />
               <Bar dataKey="Revenus" fill="#16a34a" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Dépenses" fill="#dc2626" radius={[4, 4, 0, 0]} />
@@ -195,7 +200,7 @@ function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="mois" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => formatEUR(v)} />
+              <Tooltip formatter={(v: number) => fmt(v)} />
               <Line
                 type="monotone"
                 dataKey="Net"
@@ -247,6 +252,8 @@ function MonthlyDashboard({
   onNext: () => void
 }) {
   const data = useQuery(api.budget.getMonth, { year, month })
+  // Devise de l'espace budget courant (alerte dépassement + prévision).
+  const { format: fmt } = useCurrency()
 
   // Clés de rubrique « Dépense » du mois (rubriques dynamiques).
   const expenseKeys = new Set(
@@ -314,7 +321,7 @@ function MonthlyDashboard({
                   dépassement
                 </strong>{' '}
                 — total dépassé :{' '}
-                <strong className="tabular-nums">+{formatEUR(overTotal)}</strong>
+                <strong className="tabular-nums">+{fmt(overTotal)}</strong>
               </span>
             </div>
           )}
@@ -325,7 +332,7 @@ function MonthlyDashboard({
             <span>
               Reste à dépenser :{' '}
               <strong className="tabular-nums">
-                {formatEUR(
+                {fmt(
                   Math.max(0, data.summary.expenseBudget - data.summary.expenseReal),
                 )}
               </strong>
@@ -336,7 +343,7 @@ function MonthlyDashboard({
                 className="tabular-nums"
                 style={{ color: data.summary.netBudget >= 0 ? '#16a34a' : '#dc2626' }}
               >
-                {formatEUR(data.summary.netBudget)}
+                {fmt(data.summary.netBudget)}
               </strong>
             </span>
           </div>
@@ -357,6 +364,8 @@ function MonthlyDashboard({
 function YearExpenseBreakdown({ year }: { year: number }) {
   const data = useQuery(api.budget.yearExpenseBreakdown, { year })
   const sec = useSections()
+  // Devise de l'espace budget courant (tooltip de l'anneau de répartition).
+  const { format: fmt } = useCurrency()
   if (!data) return null
   const slices = data
     .map((d) => ({
@@ -385,7 +394,7 @@ function YearExpenseBreakdown({ year }: { year: number }) {
               <Cell key={s.name} fill={s.color} />
             ))}
           </Pie>
-          <Tooltip formatter={(v: number) => formatEUR(v)} />
+          <Tooltip formatter={(v: number) => fmt(v)} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>
@@ -399,6 +408,8 @@ function YearExpenseBreakdown({ year }: { year: number }) {
  */
 function ExpenseBreakdown({ year, month }: { year: number; month: number }) {
   const data = useQuery(api.budget.getMonth, { year, month })
+  // Devise de l'espace budget courant (tooltip de l'anneau de répartition).
+  const { format: fmt } = useCurrency()
   if (!data) return null
 
   // Total réel par rubrique de DÉPENSE (rubriques dynamiques du mois).
@@ -435,7 +446,7 @@ function ExpenseBreakdown({ year, month }: { year: number; month: number }) {
               <Cell key={s.name} fill={s.color} />
             ))}
           </Pie>
-          <Tooltip formatter={(v: number) => formatEUR(v)} />
+          <Tooltip formatter={(v: number) => fmt(v)} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>
@@ -453,11 +464,13 @@ function Kpi({
   value: number
   color: string
 }) {
+  // Devise de l'espace budget courant (montant du KPI).
+  const { format: fmt } = useCurrency()
   return (
     <div className="app-card p-5">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-2 text-2xl font-bold tabular-nums" style={{ color }}>
-        {formatEUR(value)}
+        {fmt(value)}
       </p>
     </div>
   )

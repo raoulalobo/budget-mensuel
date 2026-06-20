@@ -17,6 +17,7 @@ import type * as recap from "../recap.js";
 import type * as recurring from "../recurring.js";
 import type * as sections from "../sections.js";
 import type * as seed from "../seed.js";
+import type * as settings from "../settings.js";
 import type * as sharing from "../sharing.js";
 import type * as users from "../users.js";
 import type * as vision from "../vision.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   recurring: typeof recurring;
   sections: typeof sections;
   seed: typeof seed;
+  settings: typeof settings;
   sharing: typeof sharing;
   users: typeof users;
   vision: typeof vision;

@@ -40,17 +40,55 @@ export function monthName(month: number): string {
 }
 
 /**
- * Formate un nombre en euros, format français.
- * Exemple : formatEUR(6043.4) => "6 043,40 €"
+ * DEVISES proposées dans l'interface (code ISO 4217 + libellé affiché).
+ *
+ * Un budget = UNE seule devise (pas de conversion). Cette liste alimente le
+ * sélecteur de la page Profil et DOIT rester synchronisée avec la validation
+ * serveur `ALLOWED_CURRENCIES` (cf. convex/settings.ts).
  */
-const eurFormatter = new Intl.NumberFormat('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+export const CURRENCIES = [
+  { code: 'EUR', label: 'Euro (€)' },
+  { code: 'USD', label: 'Dollar US ($)' },
+  { code: 'XAF', label: 'Franc CFA BEAC (FCFA)' },
+  { code: 'XOF', label: 'Franc CFA BCEAO (FCFA)' },
+  { code: 'GBP', label: 'Livre sterling (£)' },
+  { code: 'CHF', label: 'Franc suisse (CHF)' },
+  { code: 'CAD', label: 'Dollar canadien (CA$)' },
+  { code: 'MAD', label: 'Dirham marocain (MAD)' },
+] as const
+
+/**
+ * Cache des formateurs `Intl.NumberFormat` par devise (un par code), pour éviter
+ * d'en reconstruire un à chaque rendu.
+ */
+const formatters = new Map<string, Intl.NumberFormat>()
+function formatterFor(currency: string): Intl.NumberFormat {
+  let f = formatters.get(currency)
+  if (!f) {
+    // Locale française (séparateurs " " et ","), devise variable. On NE force PAS
+    // le nombre de décimales : Intl choisit selon la devise (EUR/USD → 2, XAF → 0).
+    f = new Intl.NumberFormat('fr-FR', { style: 'currency', currency })
+    formatters.set(currency, f)
+  }
+  return f
+}
+
+/**
+ * Formate un montant dans la devise donnée (repli 'EUR'), format français.
+ * Exemples : formatMoney(6043.4) => "6 043,40 €" ; formatMoney(6043.4,'XAF') => "6 043 FCFA".
+ */
+export function formatMoney(value: number, currency = 'EUR'): string {
+  return formatterFor(currency).format(value ?? 0)
+}
+
+/**
+ * Alias rétro-compatible : formatage en euros.
+ * Conservé pour les contextes SANS devise dynamique (modules purs comme
+ * `src/lib/pdf.ts` en repli, et la landing publique `src/routes/index.tsx`).
+ * Dans l'app authentifiée, préférer le hook `useCurrency()` (src/lib/useCurrency.ts).
+ */
 export function formatEUR(value: number): string {
-  return eurFormatter.format(value ?? 0)
+  return formatMoney(value, 'EUR')
 }
 
 /** Forme minimale d'une ligne de budget pour les calculs (sous-ensemble du doc Convex). */

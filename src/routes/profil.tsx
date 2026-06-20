@@ -12,12 +12,16 @@ import {
   Mail,
   AlertTriangle,
   X,
+  Coins,
 } from 'lucide-react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { uploadImageFile } from '../lib/upload'
 import { SkeletonCard } from '../components/Skeleton'
 import PasswordInput from '../components/PasswordInput'
+import { CURRENCIES } from '../lib/budget'
+import { useCurrency } from '../lib/useCurrency'
+import { useBudgetRole } from '../lib/budgetRole'
 
 /**
  * Route /profil : gestion du compte de l'utilisateur connecté.
@@ -57,6 +61,7 @@ function ProfilePage() {
         <>
           <AvatarCard avatarUrl={me.avatarUrl} name={me.name} email={me.email} />
           <IdentityCard name={me.name} email={me.email} />
+          <CurrencyCard />
           <PasswordCard />
           <DangerZoneCard />
         </>
@@ -203,6 +208,71 @@ function IdentityCard({
           <span className="truncate">{email ?? '—'}</span>
           <span className="ml-auto text-xs">lecture seule</span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Carte « Devise » : choix de la devise de l'ESPACE budget actuellement regardé.
+ *
+ * La devise est une propriété de l'espace budget (propriétaire effectif), pas du
+ * compte : elle change l'affichage de TOUS les montants (vue mois, tableau, PDF…)
+ * sans aucune conversion (un budget = une devise). Réservée aux éditeurs : pour
+ * un lecteur invité, le sélecteur est désactivé (le serveur refuse de toute façon
+ * via `requireWrite`). Cf. convex/settings.ts et src/lib/useCurrency.ts.
+ */
+function CurrencyCard() {
+  const { currency } = useCurrency()
+  const setCurrency = useMutation(api.settings.setCurrency)
+  const { canEdit, isOwner, ownerLabel } = useBudgetRole()
+  const [busy, setBusy] = useState(false)
+
+  // Applique le nouveau choix immédiatement (mutation optimiste côté Convex).
+  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const next = e.target.value
+    if (next === currency) return
+    setBusy(true)
+    try {
+      await setCurrency({ currency: next })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="app-card flex flex-col gap-3 p-4">
+      <div className="flex items-center gap-2">
+        <Coins className="h-4 w-4 text-muted-foreground" />
+        <h2 className="font-semibold">Devise</h2>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-muted-foreground">
+          Devise d'affichage des montants
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="app-input flex-1"
+            value={currency}
+            onChange={(e) => void handleChange(e)}
+            disabled={!canEdit || busy}
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {canEdit
+            ? isOwner
+              ? 'Tous vos montants seront affichés dans cette devise (sans conversion).'
+              : `Modifie la devise du budget de ${ownerLabel || 'ce propriétaire'} (sans conversion).`
+            : `Devise définie par ${ownerLabel || 'le propriétaire'} (lecture seule).`}
+        </p>
       </div>
     </div>
   )

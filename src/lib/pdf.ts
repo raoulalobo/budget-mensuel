@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { formatEUR, type MonthSummary } from './budget'
+import { formatMoney, type MonthSummary } from './budget'
 
 /**
  * Génération de bilans PDF (côté navigateur) via jsPDF + autotable.
@@ -24,7 +24,11 @@ export function generateMonthPdf(opts: {
     label: string
     rows: Array<{ label: string; budget: number; real: number }>
   }>
+  // Devise d'affichage (code ISO 4217). Absent ⇒ 'EUR'.
+  currency?: string
 }): void {
+  // Formate dans la devise demandée (repli EUR) — module pur, pas de hook ici.
+  const fmt = (n: number) => formatMoney(n, opts.currency ?? 'EUR')
   const doc = new jsPDF()
   const marginX = 14
   let y = 18
@@ -46,21 +50,21 @@ export function generateMonthPdf(opts: {
     body: [
       [
         'Revenus',
-        formatEUR(opts.summary.incomeBudget),
-        formatEUR(opts.summary.incomeReal),
-        formatEUR(opts.summary.incomeReal - opts.summary.incomeBudget),
+        fmt(opts.summary.incomeBudget),
+        fmt(opts.summary.incomeReal),
+        fmt(opts.summary.incomeReal - opts.summary.incomeBudget),
       ],
       [
         'Dépenses',
-        formatEUR(opts.summary.expenseBudget),
-        formatEUR(opts.summary.expenseReal),
-        formatEUR(opts.summary.expenseBudget - opts.summary.expenseReal),
+        fmt(opts.summary.expenseBudget),
+        fmt(opts.summary.expenseReal),
+        fmt(opts.summary.expenseBudget - opts.summary.expenseReal),
       ],
       [
         'Net',
-        formatEUR(opts.summary.netBudget),
-        formatEUR(opts.summary.netReal),
-        formatEUR(opts.summary.netReal - opts.summary.netBudget),
+        fmt(opts.summary.netBudget),
+        fmt(opts.summary.netReal),
+        fmt(opts.summary.netReal - opts.summary.netBudget),
       ],
     ],
     headStyles: { fillColor: ACCENT },
@@ -84,10 +88,10 @@ export function generateMonthPdf(opts: {
       head: [[section.label, 'Prévu', 'Réel']],
       body: section.rows.map((r) => [
         r.label,
-        formatEUR(r.budget),
-        formatEUR(r.real),
+        fmt(r.budget),
+        fmt(r.real),
       ]),
-      foot: [['Total', formatEUR(totalBudget), formatEUR(totalReal)]],
+      foot: [['Total', fmt(totalBudget), fmt(totalReal)]],
       headStyles: { fillColor: ACCENT },
       footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold' },
       columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
@@ -110,7 +114,11 @@ export function generateYearPdf(opts: {
   year: number
   totals: { income: number; expense: number; net: number }
   months: Array<{ name: string; income: number; expense: number; net: number }>
+  // Devise d'affichage (code ISO 4217). Absent ⇒ 'EUR'.
+  currency?: string
 }): void {
+  // Formate dans la devise demandée (repli EUR) — module pur, pas de hook ici.
+  const fmt = (n: number) => formatMoney(n, opts.currency ?? 'EUR')
   const doc = new jsPDF()
   const marginX = 14
   let y = 18
@@ -124,9 +132,9 @@ export function generateYearPdf(opts: {
     startY: y,
     head: [['Indicateur', 'Montant']],
     body: [
-      ['Revenus (année)', formatEUR(opts.totals.income)],
-      ['Dépenses (année)', formatEUR(opts.totals.expense)],
-      ['Net (année)', formatEUR(opts.totals.net)],
+      ['Revenus (année)', fmt(opts.totals.income)],
+      ['Dépenses (année)', fmt(opts.totals.expense)],
+      ['Net (année)', fmt(opts.totals.net)],
     ],
     headStyles: { fillColor: ACCENT },
     columnStyles: { 1: { halign: 'right' } },
@@ -140,9 +148,9 @@ export function generateYearPdf(opts: {
     head: [['Mois', 'Revenus', 'Dépenses', 'Net']],
     body: opts.months.map((m) => [
       m.name,
-      formatEUR(m.income),
-      formatEUR(m.expense),
-      formatEUR(m.net),
+      fmt(m.income),
+      fmt(m.expense),
+      fmt(m.net),
     ]),
     headStyles: { fillColor: ACCENT },
     columnStyles: {
