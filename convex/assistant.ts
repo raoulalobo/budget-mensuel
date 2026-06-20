@@ -67,29 +67,33 @@ export const ask = action({
       }
     }
 
-    const eur = (n: number) =>
-      `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+    // Devise de l'espace budget courant (même résolution que l'UI : propriétaire
+    // effectif). Les montants du contexte sont formatés dans cette devise.
+    const currency = await ctx.runQuery(api.settings.getCurrency, {})
+    // Intl gère les décimales selon la devise (EUR/USD → 2, XAF → 0).
+    const money = (n: number) =>
+      new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(n)
 
     // Libellés de rubriques (dynamiques) ; repli sur la clé si inconnu.
     const sectionLabel = (key: string) => snap.sectionLabels[key] ?? key
 
     // Contexte textuel compact à partir de l'instantané.
-    let ctxText = "DONNÉES BUDGÉTAIRES DE L'UTILISATEUR (montants en euros) :\n"
+    let ctxText = `DONNÉES BUDGÉTAIRES DE L'UTILISATEUR (montants en ${currency}) :\n`
     for (const m of snap.months) {
-      ctxText += `\n# ${MONTHS[m.month]} ${m.year} — Revenus ${eur(m.summary.incomeReal)}, Dépenses ${eur(m.summary.expenseReal)}, Net ${eur(m.summary.netReal)}\n`
+      ctxText += `\n# ${MONTHS[m.month]} ${m.year} — Revenus ${money(m.summary.incomeReal)}, Dépenses ${money(m.summary.expenseReal)}, Net ${money(m.summary.netReal)}\n`
       for (const e of m.entries) {
-        ctxText += `  - [${sectionLabel(e.section)}] ${e.label} : prévu ${eur(e.budget)}, réel ${eur(e.real)}\n`
+        ctxText += `  - [${sectionLabel(e.section)}] ${e.label} : prévu ${money(e.budget)}, réel ${money(e.real)}\n`
       }
     }
     if (snap.recurring.length > 0) {
       ctxText += `\n# Lignes récurrentes\n`
       for (const r of snap.recurring)
-        ctxText += `  - [${sectionLabel(r.section)}] ${r.label} : ${eur(r.amount)}\n`
+        ctxText += `  - [${sectionLabel(r.section)}] ${r.label} : ${money(r.amount)}\n`
     }
 
     const system = `Tu es l'assistant budgétaire personnel de l'utilisateur, francophone, bienveillant et concret.
 Réponds à ses questions en te basant UNIQUEMENT sur les données ci-dessous. Tu peux calculer des totaux, moyennes, écarts et comparaisons.
-Réponds en français, de façon concise et directe, en citant des montants précis (en euros). Utilise un peu de Markdown (gras, listes) si utile.
+Réponds en français, de façon concise et directe, en citant des montants précis (dans la devise ${currency} des données). Utilise un peu de Markdown (gras, listes) si utile.
 Pour toute question de classement ou d'agrégat (plus gros/petit poste, total, moyenne, comparaison), passe en revue ATTENTIVEMENT tous les montants concernés (montants RÉELS par défaut) et calcule précisément avant de conclure — ne te fie pas à une impression.
 Si une information n'est pas présente dans les données, dis-le clairement et n'invente AUCUN chiffre.
 
