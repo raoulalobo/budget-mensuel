@@ -16,6 +16,21 @@ import { formatMoney, type MonthSummary } from './budget'
 // Couleur d'accent de l'en-tête des tableaux (lagoon).
 const ACCENT: [number, number, number] = [50, 143, 151]
 
+/**
+ * Assainit une chaîne monétaire pour les polices standard de jsPDF (Helvetica,
+ * encodage WinAnsi). `Intl.NumberFormat('fr-FR')` sépare les milliers avec une
+ * ESPACE FINE INSÉCABLE (U+202F) et utilise parfois l'espace insécable normale
+ * (U+00A0) avant le symbole de devise. Ces glyphes n'existent pas dans WinAnsi :
+ * jsPDF les rend alors comme un caractère parasite (effet « slash » entre les
+ * milliers). On les remplace par une espace ASCII ordinaire.
+ *
+ * Exemple : "6 043,40 €" (avec U+202F) → "6 043,40 €" (avec espace normale).
+ */
+function pdfSafeMoney(s: string): string {
+  // U+202F espace fine insécable, U+00A0 espace insécable, U+2009 espace fine.
+  return s.replace(/[\u202F\u00A0\u2009]/g, ' ')
+}
+
 /** Bilan PDF d'un mois. */
 export function generateMonthPdf(opts: {
   title: string // ex. "Janvier 2025"
@@ -27,8 +42,9 @@ export function generateMonthPdf(opts: {
   // Devise d'affichage (code ISO 4217). Absent ⇒ 'EUR'.
   currency?: string
 }): void {
-  // Formate dans la devise demandée (repli EUR) — module pur, pas de hook ici.
-  const fmt = (n: number) => formatMoney(n, opts.currency ?? 'EUR')
+  // Formate dans la devise demandée (repli EUR), puis assainit pour la police PDF
+  // (sinon les espaces fines insécables des milliers s'affichent en parasites).
+  const fmt = (n: number) => pdfSafeMoney(formatMoney(n, opts.currency ?? 'EUR'))
   const doc = new jsPDF()
   const marginX = 14
   let y = 18
@@ -68,11 +84,16 @@ export function generateMonthPdf(opts: {
       ],
     ],
     headStyles: { fillColor: ACCENT },
+    // Police plus petite + retour à la ligne pour éviter tout dépassement de cellule.
+    styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+    // Colonne « Résumé » flexible, 3 colonnes de montants à largeur fixe (alignées à droite).
     columnStyles: {
-      1: { halign: 'right' },
-      2: { halign: 'right' },
-      3: { halign: 'right' },
+      0: { cellWidth: 'auto' },
+      1: { halign: 'right', cellWidth: 36 },
+      2: { halign: 'right', cellWidth: 36 },
+      3: { halign: 'right', cellWidth: 36 },
     },
+    margin: { left: marginX, right: marginX },
     theme: 'grid',
   })
   y = (doc as any).lastAutoTable.finalY + 8
@@ -94,7 +115,14 @@ export function generateMonthPdf(opts: {
       foot: [['Total', fmt(totalBudget), fmt(totalReal)]],
       headStyles: { fillColor: ACCENT },
       footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold' },
-      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
+      styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+      // Libellé flexible, 2 colonnes de montants à largeur fixe.
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { halign: 'right', cellWidth: 40 },
+        2: { halign: 'right', cellWidth: 40 },
+      },
+      margin: { left: marginX, right: marginX },
       theme: 'striped',
     })
     y = (doc as any).lastAutoTable.finalY + 6
@@ -117,8 +145,8 @@ export function generateYearPdf(opts: {
   // Devise d'affichage (code ISO 4217). Absent ⇒ 'EUR'.
   currency?: string
 }): void {
-  // Formate dans la devise demandée (repli EUR) — module pur, pas de hook ici.
-  const fmt = (n: number) => formatMoney(n, opts.currency ?? 'EUR')
+  // Formate dans la devise demandée (repli EUR), puis assainit pour la police PDF.
+  const fmt = (n: number) => pdfSafeMoney(formatMoney(n, opts.currency ?? 'EUR'))
   const doc = new jsPDF()
   const marginX = 14
   let y = 18
@@ -137,7 +165,9 @@ export function generateYearPdf(opts: {
       ['Net (année)', fmt(opts.totals.net)],
     ],
     headStyles: { fillColor: ACCENT },
-    columnStyles: { 1: { halign: 'right' } },
+    styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+    columnStyles: { 0: { cellWidth: 'auto' }, 1: { halign: 'right', cellWidth: 50 } },
+    margin: { left: marginX, right: marginX },
     theme: 'grid',
   })
   y = (doc as any).lastAutoTable.finalY + 8
@@ -153,11 +183,15 @@ export function generateYearPdf(opts: {
       fmt(m.net),
     ]),
     headStyles: { fillColor: ACCENT },
+    styles: { fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+    // Colonne « Mois » flexible, 3 colonnes de montants à largeur fixe.
     columnStyles: {
-      1: { halign: 'right' },
-      2: { halign: 'right' },
-      3: { halign: 'right' },
+      0: { cellWidth: 'auto' },
+      1: { halign: 'right', cellWidth: 36 },
+      2: { halign: 'right', cellWidth: 36 },
+      3: { halign: 'right', cellWidth: 36 },
     },
+    margin: { left: marginX, right: marginX },
     theme: 'striped',
   })
 
