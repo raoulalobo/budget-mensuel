@@ -125,6 +125,9 @@ export default function MonthView({
       currency,
       sections: data.sections.map((section) => ({
         label: section.label,
+        // Nature de la rubrique (income/expense) : sert au PDF à colorer les écarts
+        // et à construire le donut des dépenses par rubrique.
+        kind: section.kind,
         rows: data.entries
           .filter((e) => e.section === section.key)
           .map((e) => ({ label: e.label, budget: e.budget, real: e.real })),
