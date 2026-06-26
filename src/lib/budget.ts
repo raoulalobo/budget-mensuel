@@ -82,6 +82,37 @@ export function formatMoney(value: number, currency = 'EUR'): string {
 }
 
 /**
+ * Formate un montant SANS le symbole/code de devise, mais en conservant les
+ * règles de la devise (séparateurs français + nombre de décimales : EUR/USD → 2,
+ * XAF/XOF → 0). Utile quand la devise est rappelée une seule fois ailleurs (ex.
+ * un nota bène en tête d'un export PDF) pour éviter de la répéter sur chaque ligne.
+ *
+ * Implémentation : on réutilise le MÊME formateur que `formatMoney`
+ * (`formatterFor`) via `formatToParts`, puis on retire la part `currency` et on
+ * `.trim()` l'espace résiduel laissé entre le nombre et l'ancien symbole.
+ *
+ * Exemples : formatAmount(6043.4) => "6 043,40" ; formatAmount(6043, 'XAF') => "6 043".
+ */
+export function formatAmount(value: number, currency = 'EUR'): string {
+  return formatterFor(currency)
+    .formatToParts(value ?? 0)
+    .filter((part) => part.type !== 'currency')
+    .map((part) => part.value)
+    .join('')
+    .trim()
+}
+
+/**
+ * Libellé humain d'une devise à partir de son code ISO 4217, via la liste
+ * `CURRENCIES`. Repli sur le code lui-même si la devise n'est pas répertoriée.
+ *
+ * Exemples : currencyLabel('XAF') => "Franc CFA BEAC (FCFA)" ; currencyLabel('JPY') => "JPY".
+ */
+export function currencyLabel(code: string): string {
+  return CURRENCIES.find((c) => c.code === code)?.label ?? code
+}
+
+/**
  * Alias rétro-compatible : formatage en euros.
  * Conservé pour les contextes SANS devise dynamique (modules purs comme
  * `src/lib/pdf.ts` en repli, et la landing publique `src/routes/index.tsx`).

@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { formatMoney, type MonthSummary } from './budget'
+import { formatAmount, currencyLabel, type MonthSummary } from './budget'
 
 /**
  * Génération de bilans PDF (côté navigateur) via jsPDF + autotable.
@@ -215,9 +215,11 @@ export function generateMonthPdf(opts: {
   // Devise d'affichage (code ISO 4217). Absent ⇒ 'EUR'.
   currency?: string
 }): void {
-  // Formate dans la devise demandée (repli EUR), puis assainit pour la police PDF
+  // Devise du document, rappelée une seule fois dans le nota bène ci-dessous.
+  const currency = opts.currency ?? 'EUR'
+  // Formate SANS devise (elle figure dans le NB), puis assainit pour la police PDF
   // (sinon les espaces fines insécables des milliers s'affichent en parasites).
-  const fmt = (n: number) => pdfSafeMoney(formatMoney(n, opts.currency ?? 'EUR'))
+  const fmt = (n: number) => pdfSafeMoney(formatAmount(n, currency))
   const doc = new jsPDF()
   let y = 18
 
@@ -228,6 +230,10 @@ export function generateMonthPdf(opts: {
   doc.setFontSize(10)
   doc.setTextColor(120)
   doc.text('Bilan généré depuis l’application Budget mensuel', MARGIN_X, y)
+  y += 5
+  // Nota bène : devise précisée une fois pour tout le document (montants sans symbole).
+  doc.setFontSize(9)
+  doc.text(`Montants exprimés en ${currencyLabel(currency)}`, MARGIN_X, y)
   doc.setTextColor(0)
   y += 8
 
@@ -454,14 +460,22 @@ export function generateYearPdf(opts: {
   // Devise d'affichage (code ISO 4217). Absent ⇒ 'EUR'.
   currency?: string
 }): void {
-  // Formate dans la devise demandée (repli EUR), puis assainit pour la police PDF.
-  const fmt = (n: number) => pdfSafeMoney(formatMoney(n, opts.currency ?? 'EUR'))
+  // Devise du document, rappelée une seule fois dans le nota bène ci-dessous.
+  const currency = opts.currency ?? 'EUR'
+  // Formate SANS devise (elle figure dans le NB), puis assainit pour la police PDF.
+  const fmt = (n: number) => pdfSafeMoney(formatAmount(n, currency))
   const doc = new jsPDF()
   let y = 18
 
   doc.setFontSize(18)
   doc.text(`Bilan annuel — ${opts.year}`, MARGIN_X, y)
-  y += 10
+  y += 7
+  // Nota bène : devise précisée une fois pour tout le document (montants sans symbole).
+  doc.setFontSize(9)
+  doc.setTextColor(120)
+  doc.text(`Montants exprimés en ${currencyLabel(currency)}`, MARGIN_X, y)
+  doc.setTextColor(0)
+  y += 8
 
   // KPIs annuels
   autoTable(doc, {
